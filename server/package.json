@@ -1,0 +1,13 @@
+{
+  "name": "auction-gateway",
+  "version": "1.0.0",
+  "description": "WebSocket Gateway for Auction Server",
+  "main": "gateway.js",
+  "scripts": {
+    "start": "node gateway.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
+

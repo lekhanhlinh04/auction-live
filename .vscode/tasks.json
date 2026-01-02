@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build server",
+			"type": "shell",
+			"command": "gcc",
+			"args": [
+				"-o",
+				"server.exe",
+				"server/src/server.c",
+				"server/src/db.c",
+				"server/src/user.c",
+				"server/src/room.c",
+				"server/src/item.c",
+				"server/src/auction.c",
+				"-I\"C:/Program Files/MySQL/MySQL Server 8.0/include\"",
+				"-L\"C:/Program Files/MySQL/MySQL Server 8.0/lib\"",
+				"-lmysqlclient",
+				"-lws2_32"
+			],
+			"group": "build"
+		}
+	]
+}

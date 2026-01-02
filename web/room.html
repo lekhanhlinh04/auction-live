@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Phòng Đấu Giá Live</title>
+    <link rel="stylesheet" href="css/home.css">
+    <link rel="stylesheet" href="css/room.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <header class="room-topbar">
+        <div class="left">
+            <a href="home.html" class="logo" style="text-decoration:none; color:inherit;">AuctionZone <span
+                    class="badge-live">LIVE</span></a>
+        </div>
+        <div class="center">
+            <div class="search-bar-room">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" placeholder="Tìm kiếm trong phòng...">
+            </div>
+        </div>
+        <div class="right">
+            <div class="user-mini" onclick="openProfileModal()" style="cursor:pointer;">
+                <img src="" id="user-avatar" alt="User">
+                <span id="user-name">User</span>
+                <i class="fa-solid fa-caret-down"></i>
+            </div>
+        </div>
+    </header>
+
+    <main class="room-container">
+
+        <!-- CỘT TRÁI: CHAT -->
+        <div class="left-panel">
+            <div class="sidebar-card chat-card">
+                <div class="chat-header">
+                    <h3><i class="fa-solid fa-comments"></i> Trò chuyện</h3>
+                    <span class="chat-online"><i class="fa-solid fa-circle"></i> Live</span>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-welcome">
+                        <i class="fa-solid fa-hand-wave"></i>
+                        <p>Chào mừng bạn đến phòng đấu giá!</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Nhập tin nhắn..."
+                        onkeypress="handleChatKeyPress(event)">
+                    <button onclick="sendChatMessage()" class="chat-send-btn">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT GIỮA: SÂN KHẤU CHÍNH -->
+        <div class="main-stage">
+
+            <div class="auction-card" id="auction-stage">
+                <div class="empty-stage">
+                    <img src="https://cdni.iconscout.com/illustration/premium/thumb/waiting-room-4438795-3718469.png"
+                        alt="Waiting">
+                    <h3>Chưa có phiên đấu giá nào đang diễn ra</h3>
+                    <p>Vui lòng chọn vật phẩm trong hàng đợi để bắt đầu (nếu bạn là chủ phòng) hoặc chờ đợi.</p>
+                </div>
+            </div>
+
+            <div class="participants-section">
+                <h3>Người tham gia đấu giá</h3>
+                <div class="participants-grid" id="participant-list">
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT PHẢI: SIDEBAR -->
+        <div class="sidebar">
+
+            <div class="sidebar-card room-info-card">
+                <h3>Thông tin phòng</h3>
+                <div class="room-meta">
+                    <span>Mã phòng: <b id="room-id-display">...</b></span>
+                    <span>Chủ phòng: <b id="room-owner-display">...</b></span>
+                </div>
+                <div class="room-stats">
+                    <span><i class="fa-solid fa-users"></i> <span id="user-count">0</span> tham gia</span>
+                    <span><i class="fa-solid fa-box"></i> <span id="item-count">0</span> vật phẩm</span>
+                </div>
+                <div class="room-actions-btn">
+                    <button class="btn-leave" onclick="backToLobby()">Rời phòng</button>
+                    <button class="btn-sell" onclick="openCreateItemModal()">Đăng bán vật phẩm</button>
+                </div>
+            </div>
+
+            <div class="sidebar-card queue-card">
+                <h3>Các phiên đấu giá</h3>
+                <div class="queue-list" id="queue-list-container">
+                    <p class="text-muted">Đang tải danh sách...</p>
+                </div>
+                <button class="btn-view-all">Xem chi tiết</button>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="modal-create-item" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>ĐĂNG BÁN MỚI</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tên vật phẩm</label>
+                    <input type="text" id="inp-item-name" placeholder="Tên sản phẩm">
+                </div>
+                <div class="form-group">
+                    <label>Hình ảnh sản phẩm</label>
+                    <input type="file" id="inp-item-image" accept="image/*" onchange="previewImage(this)">
+                    <div id="image-preview" style="margin-top:10px; text-align:center; display:none;">
+                        <img id="preview-img" src=""
+                            style="max-width:200px; max-height:150px; border-radius:8px; border:2px solid #667eea;">
+                    </div>
+                    <small style="color:#888">Chọn file ảnh từ máy tính</small>
+                </div>
+                <div class="form-group">
+                    <label>Giá khởi điểm (VNĐ)</label>
+                    <input type="number" id="inp-item-price" placeholder="10000">
+                </div>
+                <div class="form-group">
+                    <label>Giá mua ngay (VNĐ) - Để 0 nếu không có</label>
+                    <input type="number" id="inp-item-buynow" placeholder="0">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-confirm" onclick="confirmCreateItem()">Đăng bán</button>
+                    <button class="btn-cancel" onclick="closeModalItem()">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE MODAL -->
+    <div id="modal-profile" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-id-card"></i> Hồ Sơ Người Dùng</h2>
+            </div>
+            <div class="modal-body">
+                <div class="profile-info">
+                    <div class="profile-avatar-large">
+                        <img src="" id="profile-avatar-img" alt="Avatar">
+                    </div>
+                    <div class="profile-details">
+                        <h3 id="profile-username">Loading...</h3>
+                        <p class="user-role">Thành viên</p>
+                    </div>
+                </div>
+
+                <div class="profile-tabs">
+                    <button class="p-tab active" onclick="switchProfileTab('info')">Thông tin</button>
+                    <button class="p-tab" onclick="switchProfileTab('password')">Đổi mật khẩu</button>
+                </div>
+
+                <!-- TAB INFO -->
+                <div id="p-tab-info" class="p-tab-content" style="display:block">
+                    <div class="info-row">
+                        <span class="label">ID Người dùng:</span>
+                        <span class="value" id="profile-id">...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Tham gia từ:</span>
+                        <span class="value">2024 (Demo)</span>
+                    </div>
+
+                    <!-- Quick Stats Preview -->
+                    <div class="profile-stats-mini">
+                        <div class="p-stat">
+                            <i class="fa-solid fa-gavel"></i>
+                            <span id="p-stat-joined">0</span>
+                            <small>Đấu giá</small>
+                        </div>
+                        <div class="p-stat">
+                            <i class="fa-solid fa-trophy"></i>
+                            <span id="p-stat-won">0</span>
+                            <small>Thắng</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB PASSWORD -->
+                <div id="p-tab-password" class="p-tab-content" style="display:none">
+                    <div class="form-group">
+                        <label>Mật khẩu cũ</label>
+                        <input type="password" id="old-pass" placeholder="Nhập mật khẩu hiện tại">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu mới</label>
+                        <input type="password" id="new-pass" placeholder="Nhập mật khẩu mới">
+                    </div>
+                    <div class="form-group">
+                        <label>Xác nhận mật khẩu mới</label>
+                        <input type="password" id="confirm-pass" placeholder="Nhập lại mật khẩu mới">
+                    </div>
+                    <button class="btn-primary full-width" onclick="changePassword()">Lưu thay đổi</button>
+                </div>
+
+                <div class="modal-actions" style="margin-top:20px">
+                    <button class="btn-cancel full-width" onclick="closeProfileModal()">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/ws.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/room.js"></script>
+</body>
+
+</html>

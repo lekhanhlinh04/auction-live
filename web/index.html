@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuctionZone Login</title>
+
+  <link rel="stylesheet" href="css/auth.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<div class="container">
+  <div class="left-panel">
+    <h1>AuctionZone</h1>
+    <div class="illustration">
+      <img src="https://cdni.iconscout.com/illustration/premium/thumb/online-auction-5666249-4720919.png" alt="Auction Illustration">
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <img src="https://cdn-icons-png.flaticon.com/512/9560/9560667.png" class="logo-icon" alt="Logo">
+
+    <h2>ĐĂNG NHẬP TÀI KHOẢN</h2>
+
+    <div class="input-group">
+      <i class="fa-regular fa-user"></i>
+      <input id="login-username" placeholder="Username">
+    </div>
+
+    <div class="input-group">
+      <i class="fa-solid fa-lock"></i>
+      <input id="login-password" type="password" placeholder="Mật khẩu">
+    </div>
+
+    <div id="login-error" class="error"></div>
+
+    <button class="btn btn-login" onclick="login()">Đăng nhập</button>
+
+    <div class="separator"><span>hoặc</span></div>
+
+    <button class="btn btn-register" onclick="goRegister()">Đăng ký tài khoản</button>
+  </div>
+</div>
+
+<script src="js/ws.js"></script>
+<script src="js/login.js"></script> 
+</body>
+</html>

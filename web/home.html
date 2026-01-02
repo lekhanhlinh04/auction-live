@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AuctionZone - Trang chủ</title>
+    <link rel="stylesheet" href="css/home.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="container header-content">
+            <a href="home.html" class="logo" style="text-decoration:none; color:inherit;">AuctionZone</a>
+
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Tìm kiếm vật phẩm..."
+                    onkeypress="handleSearchKeyPress(event)">
+                <button onclick="performSearch()"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+
+            <div class="user-panel" onclick="openProfileModal()" style="cursor:pointer;">
+                <img src="https://ui-avatars.com/api/?name=User&background=random" id="user-avatar" alt="Avatar">
+                <span id="user-name">Loading...</span>
+                <i class="fa-solid fa-caret-down" style="margin-left:5px;"></i>
+            </div>
+            <button onclick="event.stopPropagation(); logout();" class="btn-logout" title="Đăng xuất">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <div class="toolbar">
+            <div class="tabs">
+                <button class="tab-item active" onclick="switchTab('rooms')">
+                    <i class="fa-solid fa-house"></i> Danh sách phòng
+                </button>
+                <button class="tab-item" onclick="switchTab('items')">
+                    <i class="fa-solid fa-box"></i> Vật phẩm đang đấu
+                </button>
+                <button class="tab-item" onclick="switchTab('search')">
+                    <i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm
+                </button>
+                <button class="tab-item" onclick="switchTab('stats')">
+                    <i class="fa-solid fa-chart-bar"></i> Thống kê
+                </button>
+            </div>
+            <div>
+                <button class="btn-primary" onclick="requestCreateRoom()">
+                    <i class="fa-solid fa-plus"></i> Tạo phòng mới
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-rooms" class="content-section">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên phòng</th>
+                            <th>Chủ phòng (ID)</th>
+                            <th>Trạng thái</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="room-list">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-items" class="content-section" style="display: none;">
+            <div class="grid-wrapper" id="item-list">
+            </div>
+        </div>
+
+        <div id="tab-stats" class="content-section" style="display: none;">
+            <div class="stats-container">
+                <h2><i class="fa-solid fa-chart-pie"></i> Thống Kê Đấu Giá Của Bạn</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-gavel"></i></div>
+                        <div class="stat-value" id="stat-joined">0</div>
+                        <div class="stat-label">Phiên đã tham gia</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
+                        <div class="stat-value" id="stat-won">0</div>
+                        <div class="stat-label">Phiên thắng</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-icon"><i class="fa-solid fa-money-bill"></i></div>
+                        <div class="stat-value" id="stat-spent">0 đ</div>
+                        <div class="stat-label">Tổng tiền đã chi</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon"><i class="fa-solid fa-shop"></i></div>
+                        <div class="stat-value" id="stat-sold">0</div>
+                        <div class="stat-label">Vật phẩm đã bán</div>
+                    </div>
+                    <div class="stat-card primary">
+                        <div class="stat-icon"><i class="fa-solid fa-coins"></i></div>
+                        <div class="stat-value" id="stat-earned">0 đ</div>
+                        <div class="stat-label">Tổng tiền đã thu</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top:30px;"><i class="fa-solid fa-medal"></i> Vật Phẩm Đã Thắng Gần Đây</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tên vật phẩm</th>
+                                <th>Giá mua</th>
+                                <th>Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody id="won-items-list">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- TAB TÌM KIẾM -->
+        <div id="tab-search" class="content-section" style="display: none;">
+            <div class="search-panel">
+                <h2><i class="fa-solid fa-magnifying-glass"></i> Tìm Kiếm Vật Phẩm</h2>
+
+                <div class="search-options">
+                    <div class="search-group">
+                        <label>Tìm theo tên:</label>
+                        <div class="search-input-row">
+                            <input type="text" id="search-keyword" placeholder="Nhập tên vật phẩm...">
+                            <button class="btn-primary" onclick="searchByKeyword()">
+                                <i class="fa-solid fa-search"></i> Tìm
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="search-group">
+                        <label>Tìm theo khung giờ đấu giá:</label>
+                        <div class="search-time-row">
+                            <input type="datetime-local" id="search-from">
+                            <span>đến</span>
+                            <input type="datetime-local" id="search-to">
+                            <button class="btn-primary" onclick="searchByTime()">
+                                <i class="fa-solid fa-clock"></i> Tìm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="search-results">
+                    <h3><i class="fa-solid fa-list"></i> Kết quả tìm kiếm</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vật phẩm</th>
+                                    <th>Phòng</th>
+                                    <th>Giá khởi điểm</th>
+                                    <th>Trạng thái</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="search-results-list">
+                                <tr>
+                                    <td colspan="5" style="text-align:center; color:#888">Nhập từ khóa hoặc khung giờ để
+                                        tìm kiếm</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="modal-create-room" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>TẠO PHÒNG ĐẤU GIÁ</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tên phòng</label>
+                    <input type="text" id="inp-room-name" placeholder="Nhập tên phòng...">
+                </div>
+                <div class="form-group">
+                    <label>Mô tả (Tùy chọn)</label>
+                    <textarea id="inp-room-desc" rows="4" placeholder="Mô tả về phòng đấu giá này..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-confirm" onclick="confirmCreateRoom()">Tạo phòng</button>
+                    <div class="separator-text">or</div>
+                    <button class="btn-cancel" onclick="closeModal()">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE MODAL -->
+    <div id="modal-profile" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-id-card"></i> Hồ Sơ Người Dùng</h2>
+            </div>
+            <div class="modal-body">
+                <div class="profile-info">
+                    <div class="profile-avatar-large">
+                        <img src="" id="profile-avatar-img" alt="Avatar">
+                    </div>
+                    <div class="profile-details">
+                        <h3 id="profile-username">Loading...</h3>
+                        <p class="user-role">Thành viên</p>
+                    </div>
+                </div>
+
+                <div class="profile-tabs">
+                    <button class="p-tab active" onclick="switchProfileTab('info')">Thông tin</button>
+                    <button class="p-tab" onclick="switchProfileTab('password')">Đổi mật khẩu</button>
+                </div>
+
+                <!-- TAB INFO -->
+                <div id="p-tab-info" class="p-tab-content" style="display:block">
+                    <div class="info-row">
+                        <span class="label">ID Người dùng:</span>
+                        <span class="value" id="profile-id">...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Tham gia từ:</span>
+                        <span class="value">2024 (Demo)</span>
+                    </div>
+
+                    <!-- Quick Stats Preview -->
+                    <div class="profile-stats-mini">
+                        <div class="p-stat">
+                            <i class="fa-solid fa-gavel"></i>
+                            <span id="p-stat-joined">0</span>
+                            <small>Đấu giá</small>
+                        </div>
+                        <div class="p-stat">
+                            <i class="fa-solid fa-trophy"></i>
+                            <span id="p-stat-won">0</span>
+                            <small>Thắng</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB PASSWORD -->
+                <div id="p-tab-password" class="p-tab-content" style="display:none">
+                    <div class="form-group">
+                        <label>Mật khẩu cũ</label>
+                        <input type="password" id="old-pass" placeholder="Nhập mật khẩu hiện tại">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu mới</label>
+                        <input type="password" id="new-pass" placeholder="Nhập mật khẩu mới">
+                    </div>
+                    <div class="form-group">
+                        <label>Xác nhận mật khẩu mới</label>
+                        <input type="password" id="confirm-pass" placeholder="Nhập lại mật khẩu mới">
+                    </div>
+                    <button class="btn-primary full-width" onclick="changePassword()">Lưu thay đổi</button>
+                </div>
+
+                <div class="modal-actions" style="margin-top:20px">
+                    <button class="btn-cancel full-width" onclick="closeProfileModal()">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/ws.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/home.js"></script>
+</body>
+
+</html>
