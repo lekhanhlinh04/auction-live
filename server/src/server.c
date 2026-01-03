@@ -929,6 +929,38 @@ else if (strcmp(cmd, "BID") == 0) {
                         }
                     }
 
+                    // ================== LIST_BIDS ==================
+                    else if (strcmp(cmd, "LIST_BIDS") == 0) {
+                        if (n != 2) {
+                            const char *msg =
+                                "ERROR LIST_BIDS usage: LIST_BIDS itemId\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        int item_id = atoi(arg1);
+                        if (item_id <= 0) {
+                            const char *msg =
+                                "ERROR LIST_BIDS invalid itemId\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        char err[256];
+                        char out[4096];
+                        int ok = auction_list_bids(item_id,
+                                                   out, sizeof(out),
+                                                   err, sizeof(err));
+                        if (ok == 1) {
+                            send(s, out, (int)strlen(out), 0);
+                        } else {
+                            char resp[256];
+                            snprintf(resp, sizeof(resp),
+                                     "ERROR LIST_BIDS %s\n", err);
+                            send(s, resp, (int)strlen(resp), 0);
+                        }
+                    }
+
                     // ================== Lệnh khác ==================
                     else {
                         const char *msg = "UNKNOWN COMMAND\n";

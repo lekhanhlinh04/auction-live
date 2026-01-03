@@ -159,6 +159,15 @@ wss.on('connection', function (ws) {
                 const newPass = String(data.newPass).trim();
                 command = `CHANGE_PASS ${oldPass} ${newPass}\n`;
                 console.log('🔐 Change password command sent');
+            } else if (data.type === 'LIST_BIDS') {
+                const itemId = parseInt(data.itemId, 10);
+                if (isNaN(itemId) || itemId <= 0) {
+                    console.error('⚠️ Invalid itemId for LIST_BIDS:', data.itemId);
+                    ws.send('ERROR LIST_BIDS invalid itemId\n');
+                    return;
+                }
+                command = `LIST_BIDS ${itemId}\n`;
+                console.log('📜 List bids for item:', itemId);
             } else if (data.type === 'CHAT') {
                 // Chat không cần gửi qua TCP server, broadcast trực tiếp qua WebSocket
                 const chatMessage = {

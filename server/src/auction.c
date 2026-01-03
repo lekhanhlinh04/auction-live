@@ -423,4 +423,82 @@ int auction_get_finished_items(int *item_ids, int max_items) {
     return count;
 }
 
+// ============ LẤY LỊCH SỬ ĐẤU GIÁ ============
 
+int auction_list_bids(int item_id,
+                      char *out_buf, size_t buf_size,
+                      char *errMsg, size_t errSize) {
+    MYSQL *conn = db_get_conn();
+    if (!conn) {
+        snprintf(errMsg, errSize, "DB not initialized");
+        return 0;
+    }
+    if (item_id <= 0) {
+        snprintf(errMsg, errSize, "Invalid item id");
+        return 0;
+    }
+    if (buf_size == 0) {
+        snprintf(errMsg, errSize, "Buffer too small");
+        return 0;
+    }
+
+    char query[512];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    // Lấy 10 bid gần nhất, join với users để lấy username
+    snprintf(query, sizeof(query),
+        "SELECT b.user_id, COALESCE(u.username, 'Unknown'), b.amount, b.bid_time "
+        "FROM bids b "
+        "LEFT JOIN users u ON b.user_id = u.id "
+        "WHERE b.item_id = %d "
+        "ORDER BY b.amount DESC "
+        "LIMIT 10",
+        item_id);
+
+    if (mysql_query(conn, query) != 0) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+
+    res = mysql_store_result(conn);
+    if (!res) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+
+    out_buf[0] = '\0';
+    size_t used = 0;
+
+    while ((row = mysql_fetch_row(res)) != NULL) {
+        int user_id = atoi(row[0]);
+        const char *username = row[1] ? row[1] : "Unknown";
+        long long amount = atoll(row[2]);
+        const char *bid_time = row[3] ? row[3] : "";
+
+        // Format: BID_RECORD userId username amount time
+        char line[256];
+        snprintf(line, sizeof(line),
+                 "BID_RECORD %d %s %lld %s\n",
+                 user_id, username, amount, bid_time);
+
+        size_t len = strlen(line);
+        if (used + len + 1 >= buf_size) {
+            break;
+        }
+
+        memcpy(out_buf + used, line, len);
+        used += len;
+        out_buf[used] = '\0';
+    }
+
+    mysql_free_result(res);
+
+    if (used == 0) {
+        const char *msg = "NO_BIDS\n";
+        strncpy(out_buf, msg, buf_size - 1);
+        out_buf[buf_size - 1] = '\0';
+    }
+
+    return 1;
+}

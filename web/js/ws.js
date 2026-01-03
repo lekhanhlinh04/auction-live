@@ -33,43 +33,74 @@ function connectWS() {
     };
 
     ws.onmessage = (e) => {
-        // C Server gửi về text (ví dụ: "LOGIN_OK|1|admin")
+        // C Server gửi về text, có thể nhiều dòng cùng lúc
         // Gateway chuyển tiếp nguyên xi text đó về đây.
-        const msg = e.data;
-        console.log("📩 WS received:", msg);
+        const rawData = e.data;
+        console.log("📩 WS received:", rawData);
 
-        // Kiểm tra nếu LOGIN thành công
-        if (msg.startsWith("OK LOGIN")) {
-            isLoggedIn = true;
-            console.log("✅ Login thành công, gửi các lệnh đang chờ...");
-            // Gửi tất cả lệnh đang chờ
-            while (pendingCommands.length > 0) {
-                const cmd = pendingCommands.shift();
-                ws.send(JSON.stringify(cmd));
-                console.log("📤 Sent queued:", cmd);
-            }
-            // Gọi callback nếu có định nghĩa (để các trang khác biết login xong)
-            if (typeof window.onLoginSuccess === "function") {
-                window.onLoginSuccess();
+        // Split theo newline để xử lý từng message riêng
+        const messages = rawData.split("\n").filter(m => m.trim() !== "");
+
+        // Gom các message cùng loại lại (BID_RECORD, ITEM, etc.)
+        let bidRecords = [];
+        let itemRecords = [];
+        let otherMessages = [];
+
+        for (const msg of messages) {
+            if (msg.startsWith("BID_RECORD") || msg === "NO_BIDS") {
+                bidRecords.push(msg);
+            } else if (msg.startsWith("ITEM") || msg === "NO_ITEMS") {
+                itemRecords.push(msg);
+            } else {
+                otherMessages.push(msg);
             }
         }
 
-        // Xử lý tin nhắn chat (JSON từ gateway)
-        if (msg.startsWith("{")) {
-            try {
-                const jsonData = JSON.parse(msg);
-                if (jsonData.type === "CHAT_MSG" && typeof window.onChatMessage === "function") {
-                    window.onChatMessage(jsonData);
-                    return;
+        // Xử lý các message độc lập trước
+        for (const msg of otherMessages) {
+            // Kiểm tra nếu LOGIN thành công
+            if (msg.startsWith("OK LOGIN")) {
+                isLoggedIn = true;
+                console.log("✅ Login thành công, gửi các lệnh đang chờ...");
+                // Gửi tất cả lệnh đang chờ
+                while (pendingCommands.length > 0) {
+                    const cmd = pendingCommands.shift();
+                    ws.send(JSON.stringify(cmd));
+                    console.log("📤 Sent queued:", cmd);
                 }
-            } catch (e) {
-                // Không phải JSON, tiếp tục xử lý bình thường
+                // Gọi callback nếu có định nghĩa (để các trang khác biết login xong)
+                if (typeof window.onLoginSuccess === "function") {
+                    window.onLoginSuccess();
+                }
+            }
+
+            // Xử lý tin nhắn chat (JSON từ gateway)
+            if (msg.startsWith("{")) {
+                try {
+                    const jsonData = JSON.parse(msg);
+                    if (jsonData.type === "CHAT_MSG" && typeof window.onChatMessage === "function") {
+                        window.onChatMessage(jsonData);
+                        continue;
+                    }
+                } catch (e) {
+                    // Không phải JSON, tiếp tục xử lý bình thường
+                }
+            }
+
+            // Gọi hàm xử lý riêng ở từng trang
+            if (typeof window.onServerMessage === "function") {
+                window.onServerMessage(msg);
             }
         }
 
-        // Gọi hàm xử lý riêng ở từng trang (nếu trang đó có định nghĩa)
-        if (typeof window.onServerMessage === "function") {
-            window.onServerMessage(msg);
+        // Gửi tất cả BID_RECORD cùng lúc (join lại thành 1 string)
+        if (bidRecords.length > 0 && typeof window.onServerMessage === "function") {
+            window.onServerMessage(bidRecords.join("\n"));
+        }
+
+        // Gửi tất cả ITEM cùng lúc (join lại thành 1 string)
+        if (itemRecords.length > 0 && typeof window.onServerMessage === "function") {
+            window.onServerMessage(itemRecords.join("\n"));
         }
     };
 

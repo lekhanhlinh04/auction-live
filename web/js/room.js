@@ -246,8 +246,11 @@ window.onServerMessage = function (msg) {
         const newPrice = parseInt(parts[3]);
         const seconds = parseInt(parts[4]);
 
+        console.log("📣 NEW_BID received:", { itemId, userId, newPrice, seconds, currentStageItemId });
+
         // Chỉ cập nhật nếu vật phẩm đó đang hiển thị trên sân khấu
         if (itemId === currentStageItemId) {
+            console.log("✅ Updating UI with new price:", newPrice);
             updateLiveAuctionUI(newPrice, userId, seconds);
 
             // Toast notification cho bid mới
@@ -255,6 +258,8 @@ window.onServerMessage = function (msg) {
                 showToast(`🔥 User #${userId} đặt giá ${newPrice.toLocaleString()}đ`, 'warning', 3000);
                 playBidSound();
             }
+        } else {
+            console.log("⚠️ ItemId mismatch! Not updating UI. itemId:", itemId, "vs currentStageItemId:", currentStageItemId);
         }
     }
 
@@ -326,6 +331,12 @@ window.onServerMessage = function (msg) {
     else if (msg.startsWith("OK BID")) {
         showToast("✅ Đặt giá thành công!", 'success', 2000);
         console.log("Đặt giá thành công (chờ NEW_BID để update UI)");
+    }
+
+
+    // --- I. LỊCH SỬ ĐẤU GIÁ ---
+    else if (msg.startsWith("BID_RECORD") || msg.startsWith("NO_BIDS")) {
+        processBidHistory(msg);
     }
 
     // --- H. LỖI ---
@@ -487,11 +498,11 @@ function renderMainStage(item, secondsLeft) {
 
     // Lấy ảnh: ưu tiên localStorage, sau đó server, cuối cùng placeholder
     const itemNameKey = item.name.replace(/\s+/g, '_');
-    const imageUrl = getItemImage(itemNameKey) || item.imageUrl || `https://via.placeholder.com/400x300.png?text=${encodeURIComponent(item.name)}`;
+    const imageUrl = getItemImage(itemNameKey) || item.imageUrl || 'https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg';
 
     stage.innerHTML = `
         <div class="product-image-area">
-            <img src="${imageUrl}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/400x300.png?text=No+Image'">
+            <img src="${imageUrl}" alt="${item.name}" onerror="this.src='https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg'">
         </div>
         <div class="bidding-area">
             <div class="auction-header">
@@ -540,6 +551,9 @@ function renderMainStage(item, secondsLeft) {
     if (secondsLeft !== null) {
         startCountdown(secondsLeft);
     }
+
+    // Load lịch sử đấu giá từ server
+    loadBidHistory(item.id);
 }
 
 function updateLiveAuctionUI(newPrice, userId, secondsLeft) {
@@ -572,8 +586,16 @@ function quickBid(itemId, amount) {
     const priceElem = document.getElementById("live-price");
     if (!priceElem) return;
 
-    const currentPrice = parseInt(priceElem.innerText.replace(/[^\d]/g, '')) || 0;
+    const priceText = priceElem.innerText;
+    const currentPrice = parseInt(priceText.replace(/[^\d]/g, '')) || 0;
     const newBid = currentPrice + amount;
+
+    console.log("🔍 quickBid DEBUG:", {
+        priceText: priceText,
+        currentPrice: currentPrice,
+        addAmount: amount,
+        newBid: newBid
+    });
 
     sendPacket({ type: "BID", itemId: itemId, amount: newBid });
     showToast(`💰 Đặt giá ${newBid.toLocaleString()}đ`, 'info', 2000);
@@ -586,8 +608,12 @@ function addBidToHistory(userId, price) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN');
 
+    // Nếu là mình thì lấy username từ currentUser
+    const username = (userId == currentUser.id) ? currentUser.username : null;
+
     bidHistory.unshift({
         userId: userId,
+        username: username,
         price: price,
         time: timeStr
     });
@@ -596,6 +622,14 @@ function addBidToHistory(userId, price) {
     if (bidHistory.length > 10) bidHistory.pop();
 
     renderBidHistory();
+
+    // Load lại từ server sau 500ms để có username đầy đủ cho tất cả
+    clearTimeout(window.bidHistoryReloadTimer);
+    window.bidHistoryReloadTimer = setTimeout(() => {
+        if (currentStageItemId > 0) {
+            loadBidHistory(currentStageItemId);
+        }
+    }, 500);
 }
 
 function renderBidHistory() {
@@ -607,13 +641,99 @@ function renderBidHistory() {
         return;
     }
 
-    container.innerHTML = bidHistory.map((bid, index) => `
+    container.innerHTML = bidHistory.map((bid, index) => {
+        let displayName = bid.username || `User #${bid.userId}`;
+        if (bid.userId == currentUser.id) displayName = '🏆 Bạn';
+
+        return `
         <div class="bid-history-item ${index === 0 ? 'latest' : ''}">
-            <span class="bid-user">${bid.userId == currentUser.id ? '🏆 Bạn' : 'User #' + bid.userId}</span>
+            <span class="bid-user">${displayName}</span>
             <span class="bid-price">${bid.price.toLocaleString()}đ</span>
             <span class="bid-time">${bid.time}</span>
         </div>
-    `).join('');
+    `}).join('');
+}
+
+// Xử lý lịch sử đấu giá từ server
+function processBidHistory(textData) {
+    console.log("📜 Processing bid history:", textData);
+
+    if (textData.trim() === "NO_BIDS") {
+        bidHistory = [];
+        renderBidHistory();
+        return;
+    }
+
+    const lines = textData.split("\n");
+    bidHistory = [];
+
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line.startsWith("BID_RECORD")) return;
+
+        // Format: BID_RECORD userId username amount time
+        const parts = line.split(" ");
+        if (parts.length >= 5) {
+            const userId = parts[1];
+            const username = parts[2];
+            const amount = parseInt(parts[3]);
+            // Time có thể chứa khoảng trắng (YYYY-MM-DD HH:MM:SS)
+            const time = parts.slice(4).join(" ");
+
+            bidHistory.push({
+                userId: userId,
+                username: username,
+                price: amount,
+                time: time
+            });
+        }
+    });
+
+    renderBidHistory();
+
+    // Cập nhật danh sách người tham gia từ lịch sử bid
+    updateParticipantsFromHistory();
+}
+
+// Gọi API lấy lịch sử đấu giá
+function loadBidHistory(itemId) {
+    if (itemId <= 0) return;
+    console.log("📜 Loading bid history for item:", itemId);
+    sendPacket({ type: "LIST_BIDS", itemId: itemId });
+}
+
+// Cập nhật danh sách người tham gia từ lịch sử bid
+function updateParticipantsFromHistory() {
+    const list = document.getElementById("participant-list");
+    if (!list) return;
+
+    list.innerHTML = "";
+
+    // Lấy danh sách unique users từ bidHistory
+    const seenUsers = new Set();
+    bidHistory.forEach((bid, index) => {
+        if (seenUsers.has(bid.userId)) return;
+        seenUsers.add(bid.userId);
+
+        const isHighest = index === 0;
+        const displayName = bid.username || `User #${bid.userId}`;
+
+        const html = `
+            <div class="user-card ${isHighest ? 'highest' : ''}">
+                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random">
+                <div class="u-info">
+                    <span class="u-name">${displayName}</span>
+                    <span class="u-role">${isHighest ? 'Đang dẫn đầu' : 'Đã tham gia'}</span>
+                    <span class="u-price" style="color:#0066ff">${bid.price.toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+        list.insertAdjacentHTML('beforeend', html);
+    });
+
+    if (bidHistory.length === 0) {
+        list.innerHTML = '<div class="no-participants">Chưa có ai tham gia</div>';
+    }
 }
 
 // Confetti animation khi thắng đấu giá
@@ -872,7 +992,7 @@ function confirmCreateItem() {
 // Lấy ảnh từ localStorage
 function getItemImage(itemName) {
     const itemImages = JSON.parse(localStorage.getItem("itemImages") || "{}");
-    return itemImages[itemName] || `https://via.placeholder.com/400x300.png?text=${encodeURIComponent(itemName.replace(/_/g, ' '))}`;
+    return itemImages[itemName] || 'https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg';
 }
 
 // Xóa vật phẩm

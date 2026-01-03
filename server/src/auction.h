@@ -36,4 +36,9 @@ int auction_finish_if_needed(int item_id,
                              int *out_has_winner,
                              char *errMsg, size_t errSize);
 
+// Lấy lịch sử đấu giá của một item
+int auction_list_bids(int item_id,
+                      char *out_buf, size_t buf_size,
+                      char *errMsg, size_t errSize);
+
 #endif
