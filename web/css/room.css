@@ -156,6 +156,7 @@ body {
 .auction-card {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 20px;
     padding: 25px;
@@ -165,6 +166,9 @@ body {
     position: relative;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    /* Fix flickering */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .auction-card::before {
@@ -378,10 +382,14 @@ body {
 .sidebar-card {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     padding: 25px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    /* Fix flickering */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .room-info-card h3 {
@@ -586,6 +594,10 @@ body {
 .modal-overlay {
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    /* Fix flickering */
+    transform: translateZ(0);
+    will-change: transform, opacity;
 }
 
 .modal-content {
@@ -593,6 +605,9 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #fff;
     border-radius: 20px;
+    /* Fix flickering */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .modal-content .form-group label {
@@ -891,9 +906,13 @@ body {
 .chat-card {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     padding: 0;
     overflow: hidden;
+    /* Fix flickering */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .chat-header {
@@ -932,7 +951,7 @@ body {
     }
 
     50% {
-        opacity: 0.3;
+        opacity: 0.5;
     }
 }
 

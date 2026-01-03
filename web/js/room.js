@@ -23,11 +23,26 @@ if (isNaN(roomId) || roomId <= 0) {
     window.location.href = "home.html";
 }
 
-setTimeout(() => {
-    // Gửi packet: tên thuộc tính phải là "roomId" để khớp với server.js ở trên
+// Hàm gửi lệnh vào phòng
+let hasJoinedRoom = false;
+function joinRoomAndLoadItems() {
+    if (hasJoinedRoom) return; // Tránh gọi 2 lần
+    hasJoinedRoom = true;
+    console.log("📦 Gửi lệnh JOIN_ROOM và LIST_ITEMS...");
     sendPacket({ type: "JOIN_ROOM", roomId: roomId });
     loadItems();
-}, 500);
+}
+
+// Callback được gọi khi login thành công (từ ws.js)
+window.onLoginSuccess = function () {
+    console.log("🎉 onLoginSuccess callback - joining room...");
+    joinRoomAndLoadItems();
+};
+
+// Fallback: nếu đã login sẵn hoặc callback không được gọi
+setTimeout(() => {
+    joinRoomAndLoadItems();
+}, 1500);
 
 // Hiển thị thông tin người dùng và phòng
 document.getElementById("user-name").innerText = currentUser.username;

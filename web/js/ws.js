@@ -48,6 +48,10 @@ function connectWS() {
                 ws.send(JSON.stringify(cmd));
                 console.log("📤 Sent queued:", cmd);
             }
+            // Gọi callback nếu có định nghĩa (để các trang khác biết login xong)
+            if (typeof window.onLoginSuccess === "function") {
+                window.onLoginSuccess();
+            }
         }
 
         // Xử lý tin nhắn chat (JSON từ gateway)
