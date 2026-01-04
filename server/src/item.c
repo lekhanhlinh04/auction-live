@@ -166,6 +166,9 @@ int item_create(int seller_id, int room_id, const char *name,
 
     if (imgEsc) free(imgEsc);
 
+    // DEBUG QUERY
+    printf("DEBUG SQL (len=%zu): %s\n", strlen(queryDynamic), queryDynamic);
+
     int ret = 0;
     if (mysql_query(conn, queryDynamic) != 0) {
         snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
