@@ -384,3 +384,132 @@ int room_close(int user_id, int room_id,
 
     return 1;
 }
+
+
+// ================== OPEN_ROOM (owner) ==================
+
+int room_open(int user_id, int room_id,
+              char *errMsg, size_t errSize) {
+    MYSQL *conn = db_get_conn();
+    if (!conn) {
+        snprintf(errMsg, errSize, "DB not initialized");
+        return 0;
+    }
+    if (user_id <= 0 || room_id <= 0) {
+        snprintf(errMsg, errSize, "Invalid user or room");
+        return 0;
+    }
+
+    char query[512];
+
+    // 1) Kiểm tra owner & trạng thái hiện tại
+    snprintf(query, sizeof(query),
+             "SELECT owner_id, status FROM rooms WHERE id = %d",
+             room_id);
+    if (mysql_query(conn, query) != 0) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+    MYSQL_RES *res = mysql_store_result(conn);
+    if (!res) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+    MYSQL_ROW row = mysql_fetch_row(res);
+    if (!row) {
+        mysql_free_result(res);
+        snprintf(errMsg, errSize, "Room not found");
+        return 0;
+    }
+    int owner_id = atoi(row[0]);
+    int status   = atoi(row[1]);
+    mysql_free_result(res);
+
+    if (owner_id != user_id) {
+        snprintf(errMsg, errSize, "Not room owner");
+        return 0;
+    }
+    if (status == 1) {
+        snprintf(errMsg, errSize, "Room already open");
+        return 0;
+    }
+
+    // 2) Đánh dấu room OPEN
+    snprintf(query, sizeof(query),
+             "UPDATE rooms SET status = 1 WHERE id = %d", room_id);
+    if (mysql_query(conn, query) != 0) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+
+    return 1;
+}
+
+// ================== LIST_ROOM_MEMBERS ==================
+
+int room_list_members(int room_id,
+                      char *out_buf, size_t buf_size,
+                      char *errMsg, size_t errSize) {
+    MYSQL *conn = db_get_conn();
+    if (!conn) {
+        snprintf(errMsg, errSize, "DB not initialized");
+        return 0;
+    }
+    if (room_id <= 0) {
+        snprintf(errMsg, errSize, "Invalid room id");
+        return 0;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "SELECT rm.user_id, u.username "
+             "FROM room_members rm "
+             "JOIN users u ON rm.user_id = u.id "
+             "WHERE rm.room_id = %d AND rm.left_at IS NULL "
+             "ORDER BY rm.joined_at ASC",
+             room_id);
+
+    if (mysql_query(conn, query) != 0) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+
+    MYSQL_RES *res = mysql_store_result(conn);
+    if (!res) {
+        snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
+        return 0;
+    }
+
+    MYSQL_ROW row;
+    size_t used = 0;
+    if (buf_size == 0) {
+        mysql_free_result(res);
+        return 0;
+    }
+    out_buf[0] = '\0';
+
+    while ((row = mysql_fetch_row(res)) != NULL) {
+        int user_id = atoi(row[0]);
+        const char *username = row[1] ? row[1] : "Unknown";
+
+        char line[256];
+        snprintf(line, sizeof(line), "MEMBER %d %s\n", user_id, username);
+
+        size_t len = strlen(line);
+        if (used + len + 1 >= buf_size) break;
+
+        memcpy(out_buf + used, line, len);
+        used += len;
+        out_buf[used] = '\0';
+    }
+
+    mysql_free_result(res);
+
+    if (used == 0) {
+        const char *msg = "NO_MEMBERS\n";
+        strncpy(out_buf, msg, buf_size - 1);
+        out_buf[buf_size - 1] = '\0';
+    }
+
+    return 1;
+}

@@ -103,12 +103,22 @@ int item_create(int seller_id, int room_id, const char *name,
     char nameEsc[256];
     escape_string(conn, name, nameEsc, sizeof(nameEsc));
     
-    // Escape image_url và lưu vào description
-    char imgEsc[512];
-    if (image_url && image_url[0] != '\0') {
-        escape_string(conn, image_url, imgEsc, sizeof(imgEsc));
+    // Fix: Allocate heap for image escaping (Base64 can be 6.6MB for 5MB file)
+    // mysql_real_escape_string needs 2*len+1
+    size_t imgLen = (image_url ? strlen(image_url) : 0);
+    char *imgEsc = NULL;
+    if (imgLen > 0) {
+        imgEsc = (char*)malloc(2 * imgLen + 1);
+        if (imgEsc) {
+            mysql_real_escape_string(conn, imgEsc, image_url, imgLen);
+        } else {
+             snprintf(errMsg, errSize, "Server OOM for image");
+             return 0;
+        }
     } else {
-        imgEsc[0] = '\0';
+        // dummy empty
+        imgEsc = (char*)malloc(1);
+        if(imgEsc) imgEsc[0] = '\0';
     }
 
     if (buy_now_price > 0) {
@@ -142,6 +152,8 @@ int item_create(int seller_id, int room_id, const char *name,
                  start_price,
                  next_order);
     }
+    
+    if (imgEsc) free(imgEsc);
 
     if (mysql_query(conn, query) != 0) {
         snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
@@ -223,8 +235,11 @@ int item_list_by_room(int room_id,
         const char *seller_name   = row[11] ? row[11] : "Unknown";
 
         // Format: ITEM id room sellerId sellerName name price buynow status queue start end imageUrl
-        char line[1024];
-        snprintf(line, sizeof(line),
+        // Allocate large line buffer
+        char *line = (char*)malloc(7 * 1024 * 1024); // 7MB
+        if (!line) break; // OOM
+        
+        snprintf(line, 7 * 1024 * 1024,
                  "ITEM %d %d %d %s %s %lld %lld %s %d %s %s %s\n",
                  id, r_id, seller_id, seller_name, name,
                  start_price, buy_now, status, queue_order,
@@ -239,6 +254,7 @@ int item_list_by_room(int room_id,
         memcpy(out_buf + used, line, len);
         used += len;
         out_buf[used] = '\0';
+        free(line);
     }
 
     mysql_free_result(res);

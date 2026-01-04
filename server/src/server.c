@@ -45,6 +45,12 @@ int main(void) {
     SOCKET clientSockets[MAX_CLIENTS];
     int    clientUserIds[MAX_CLIENTS];   // 0 = chưa login
     int    clientRoomIds[MAX_CLIENTS];   // 0 = chưa ở phòng nào
+    
+    // START DYNAMIC BUFFERING
+    char  *clientBuffers[MAX_CLIENTS];
+    int    clientBufLen[MAX_CLIENTS];
+    int    clientBufCap[MAX_CLIENTS];
+    // END DYNAMIC BUFFERING
     struct sockaddr_in serverAddr, clientAddr;
     int addrlen = sizeof(clientAddr);
     fd_set readfds;
@@ -55,6 +61,10 @@ int main(void) {
         clientSockets[i] = INVALID_SOCKET;
         clientUserIds[i] = 0;
         clientRoomIds[i] = 0;
+        
+        clientBuffers[i] = NULL;
+        clientBufLen[i] = 0;
+        clientBufCap[i] = 0;
     }
 
     // Khởi tạo Winsock
@@ -73,6 +83,22 @@ int main(void) {
         WSACleanup();
         return 1;
     }
+
+    // --- DB SCHEMA MIGRATION ---
+    // Đảm bảo image_url đủ dài để chứa Base64 (MEDIUMTEXT ~16MB)
+    {
+        MYSQL *conn = db_get_conn();
+        if (conn) {
+            const char *alter_query = "ALTER TABLE items MODIFY description MEDIUMTEXT";
+            if (mysql_query(conn, alter_query) != 0) {
+                // Có thể lỗi nếu column khác tên hoặc đã tồn tại, nhưng cứ thử
+                // printf("Migration warning: %s\n", mysql_error(conn));
+            } else {
+                printf("✅ Database schema updated: items.description -> MEDIUMTEXT\n");
+            }
+        }
+    }
+    // ----------------------------
 
     // Tạo socket lắng nghe
     listenSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -178,11 +204,17 @@ for (int k = 0; k < finished_count; k++) {
                  item_id, winner_id, final_price);
         broadcast_to_room(room_id, notify, strlen(notify),
                           clientSockets, clientRoomIds);
+
+        // log
+        char details[64];
+        snprintf(details, sizeof(details), "item %d won by %d price %lld",
+                 item_id, winner_id, final_price);
+        log_activity(winner_id > 0 ? winner_id : 0, "AUCTION_WON", details);
+
     } else {
         char notify[256];
         snprintf(notify, sizeof(notify),
-                 "AUCTION_EXPIRED %d\n",
-                 item_id);
+                 "AUCTION_FINISHED %d 0 0\n", item_id);
         broadcast_to_room(room_id, notify, strlen(notify),
                           clientSockets, clientRoomIds);
     }
@@ -196,12 +228,20 @@ if (FD_ISSET(listenSock, &readfds)) {
     if (clientSock == INVALID_SOCKET) {
         printf("accept() failed: %d\n", WSAGetLastError());
     } else {
-        printf("New connection: socket %d\n", (int)clientSock);
+        printf("New connection: socket %d, ip %s, port %d\n",
+               (int)clientSock, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
         for (i = 0; i < MAX_CLIENTS; i++) {
             if (clientSockets[i] == INVALID_SOCKET) {
                 clientSockets[i] = clientSock;
                 clientUserIds[i] = 0;
                 clientRoomIds[i] = 0;
+                
+                // Init buffer 1KB
+                clientBufCap[i] = 1024;
+                clientBufLen[i] = 0;
+                clientBuffers[i] = (char*)malloc(clientBufCap[i]);
+                if (clientBuffers[i]) clientBuffers[i][0] = '\0';
+                
                 break;
             }
         }
@@ -216,8 +256,9 @@ if (FD_ISSET(listenSock, &readfds)) {
         for (i = 0; i < MAX_CLIENTS; i++) {
             SOCKET s = clientSockets[i];
             if (s != INVALID_SOCKET && FD_ISSET(s, &readfds)) {
-                char buf[1024];
-                int bytes = recv(s, buf, sizeof(buf) - 1, 0);
+                // BUFFER LỚN 64KB ĐỂ NHẬN ẢNH BASE64
+                char clientBufTemp[65536]; 
+                int bytes = recv(s, clientBufTemp, sizeof(clientBufTemp) - 1, 0);
 
                 if (bytes <= 0) {
                     // Client disconnect
@@ -234,15 +275,51 @@ if (FD_ISSET(listenSock, &readfds)) {
                     clientSockets[i] = INVALID_SOCKET;
                     clientUserIds[i] = 0;
                     clientRoomIds[i] = 0;
+                    
+                    // Free buffer
+                    if (clientBuffers[i]) free(clientBuffers[i]);
+                    clientBuffers[i] = NULL;
+                    clientBufLen[i] = 0;
+                    clientBufCap[i] = 0;
                 } else {
-                    buf[bytes] = '\0';
-                    trim_newline(buf);
-                    printf("From %d: %s\n", (int)s, buf);
+                    // APPEND DATA
+                    if (clientBufLen[i] + bytes + 1 > clientBufCap[i]) {
+                        int newCap = clientBufCap[i] * 2;
+                        if (newCap < clientBufLen[i] + bytes + 1) newCap = clientBufLen[i] + bytes + 1;
+                        if (newCap > 8 * 1024 * 1024) newCap = 8 * 1024 * 1024;
+                        
+                        char *newBuf = (char*)realloc(clientBuffers[i], newCap);
+                        if (!newBuf) {
+                            clientBufLen[i] = 0; // Clear buffer on error
+                        } else {
+                            clientBuffers[i] = newBuf;
+                            clientBufCap[i] = newCap;
+                        }
+                    }
 
-                    char cmd[32], arg1[128], arg2[128];
-                    int n = sscanf(buf, "%31s %127s %127s", cmd, arg1, arg2);
+                    if (clientBuffers[i] && (clientBufLen[i] + bytes < clientBufCap[i])) {
+                        memcpy(clientBuffers[i] + clientBufLen[i], clientBufTemp, bytes);
+                        clientBufLen[i] += bytes;
+                        clientBuffers[i][clientBufLen[i]] = '\0';
+                        
+                        // PROCESS COMMANDS LOOP
+                        while (1) {
+                            char *newline = strchr(clientBuffers[i], '\n');
+                            if (!newline) break; // Incomplete
+                            
+                            *newline = '\0';
+                            char *buf = clientBuffers[i];
+                            trim_newline(buf);
+                            
+                            // Log short commands only
+                            if (strlen(buf) > 0 && strlen(buf) < 200) printf("From %d: %s\n", (int)s, buf);
 
-                    if (n <= 0) {
+                            char cmd[32], arg1[128], arg2[128];
+                            // Clean vars
+                            cmd[0] = '\0'; arg1[0] = '\0'; arg2[0] = '\0';
+                            int n = sscanf(buf, "%31s %127s %127s", cmd, arg1, arg2);
+
+                            if (n <= 0) {
                         const char *msg = "ERROR Empty command\n";
                         send(s, msg, (int)strlen(msg), 0);
                         continue;
@@ -398,6 +475,37 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
+                    // ================== LIST_ROOM_MEMBERS ==================
+                    else if (strcmp(cmd, "LIST_ROOM_MEMBERS") == 0) {
+                        if (n != 2) {
+                            const char *msg =
+                                "ERROR LIST_ROOM_MEMBERS usage: LIST_ROOM_MEMBERS room_id\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        int room_id = atoi(arg1);
+                        if (room_id <= 0) {
+                            const char *msg =
+                                "ERROR LIST_ROOM_MEMBERS invalid room_id\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        char err[256];
+                        char bufMembers[4096];
+                        int ok = room_list_members(room_id, bufMembers, sizeof(bufMembers),
+                                                   err, sizeof(err));
+                        if (ok == 1) {
+                            send(s, bufMembers, (int)strlen(bufMembers), 0);
+                        } else {
+                            char resp[256];
+                            snprintf(resp, sizeof(resp),
+                                     "ERROR LIST_ROOM_MEMBERS %s\n", err);
+                            send(s, resp, (int)strlen(resp), 0);
+                        }
+                    }
+
                     // ================== JOIN_ROOM ==================
                     else if (strcmp(cmd, "JOIN_ROOM") == 0) {
                         if (n != 2) {
@@ -442,6 +550,30 @@ if (FD_ISSET(listenSock, &readfds)) {
                             char details[32];
                             snprintf(details, sizeof(details), "room %d", room_id);
                             log_activity(clientUserIds[i], "JOIN_ROOM", details);
+
+                            // Broadcast user joined to all room members
+                            char notify[256];
+                            char username[64] = "User";
+                            // Get username from DB (simple query)
+                            char uq[128];
+                            snprintf(uq, sizeof(uq), 
+                                     "SELECT username FROM users WHERE id = %d", 
+                                     clientUserIds[i]);
+                            if (mysql_query(db_get_conn(), uq) == 0) {
+                                MYSQL_RES *ures = mysql_store_result(db_get_conn());
+                                if (ures) {
+                                    MYSQL_ROW urow = mysql_fetch_row(ures);
+                                    if (urow && urow[0]) {
+                                        strncpy(username, urow[0], sizeof(username)-1);
+                                    }
+                                    mysql_free_result(ures);
+                                }
+                            }
+                            snprintf(notify, sizeof(notify),
+                                     "USER_JOINED %d %s\n",
+                                     clientUserIds[i], username);
+                            broadcast_to_room(room_id, notify, strlen(notify),
+                                              clientSockets, clientRoomIds);
                         } else {
                             char resp[256];
                             snprintf(resp, sizeof(resp),
@@ -479,6 +611,13 @@ if (FD_ISSET(listenSock, &readfds)) {
                                             target_room_id,
                                             err, sizeof(err));
                         if (ok == 1) {
+                            // Broadcast user left BEFORE clearing clientRoomIds
+                            char notify[256];
+                            snprintf(notify, sizeof(notify),
+                                     "USER_LEFT %d\n", clientUserIds[i]);
+                            broadcast_to_room(target_room_id, notify, strlen(notify),
+                                              clientSockets, clientRoomIds);
+
                             if (clientRoomIds[i] == target_room_id) {
                                 clientRoomIds[i] = 0;
                             }
@@ -534,6 +673,45 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
+                    // ================== OPEN_ROOM ==================
+                    else if (strcmp(cmd, "OPEN_ROOM") == 0) {
+                        if (n != 2) {
+                            const char *msg =
+                                "ERROR OPEN_ROOM usage: OPEN_ROOM room_id\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+                        if (clientUserIds[i] <= 0) {
+                            const char *msg =
+                                "ERROR OPEN_ROOM must LOGIN first\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        int room_id = atoi(arg1);
+                        if (room_id <= 0) {
+                            const char *msg =
+                                "ERROR OPEN_ROOM invalid room_id\n";
+                            send(s, msg, (int)strlen(msg), 0);
+                            continue;
+                        }
+
+                        char err[256];
+                        int ok = room_open(clientUserIds[i], room_id,
+                                           err, sizeof(err));
+                        if (ok == 1) {
+                            char resp[128];
+                            snprintf(resp, sizeof(resp),
+                                     "OK OPEN_ROOM %d\n", room_id);
+                            send(s, resp, (int)strlen(resp), 0);
+                        } else {
+                            char resp[256];
+                            snprintf(resp, sizeof(resp),
+                                     "ERROR OPEN_ROOM %s\n", err);
+                            send(s, resp, (int)strlen(resp), 0);
+                        }
+                    }
+
                     // ================== CREATE_ITEM ==================
                     else if (strcmp(cmd, "CREATE_ITEM") == 0) {
                         if (clientUserIds[i] <= 0) {
@@ -551,30 +729,67 @@ if (FD_ISSET(listenSock, &readfds)) {
                             continue;
                         }
 
-                        long long start_price, buy_now_price;
-                        char name[128];
-                        char image_url[512];
-                        image_url[0] = '\0';
-
-                        // Cú pháp:
-                        //   CREATE_ITEM name startPrice buyNowPrice [imageUrl]
-                        int num = sscanf(buf, "%*s %127s %lld %lld %511s",
-                                         name, &start_price, &buy_now_price, image_url);
-                        if (num < 3) {
-                            const char *msg =
-                                "ERROR CREATE_ITEM usage: "
-                                "CREATE_ITEM name startPrice buyNowPrice [imageUrl]\n";
+                        long long start_price = 0, buy_now_price = 0;
+                        char *name_ptr = NULL;
+                        char *image_ptr = NULL;
+                        
+                        // Parse manually to avoid sscanf limits on large strings
+                        // Format: CREATE_ITEM name startPrice buyNowPrice [imageUrl]
+                        // buf starts with "CREATE_ITEM ..."
+                        char *p = buf;
+                        
+                        // Skip CMD
+                        while (*p && !isspace(*p)) p++;
+                        while (*p && isspace(*p)) p++;
+                        
+                        // arg1: name
+                        if (*p) {
+                            name_ptr = p;
+                            while (*p && !isspace(*p)) p++;
+                            if (*p) *p++ = '\0';
+                            while (*p && isspace(*p)) p++;
+                        }
+                        
+                        // arg2: start_price
+                        if (*p) {
+                            char *price_str = p;
+                            while (*p && !isspace(*p)) p++;
+                            if (*p) *p++ = '\0';
+                            while (*p && isspace(*p)) p++;
+                            start_price = atoll(price_str);
+                        }
+                        
+                        // arg3: buy_now_price
+                        if (*p) {
+                            char *bn_str = p;
+                            while (*p && !isspace(*p)) p++;
+                            if (*p) *p++ = '\0';
+                            while (*p && isspace(*p)) p++;
+                            buy_now_price = atoll(bn_str);
+                        }
+                        
+                        // arg4: image_url (optional)
+                        if (*p) {
+                             image_ptr = p;
+                             // Image URL might be the last token, taking rest of string?
+                             // Yes, assumes no extra args.
+                             // But let's trim trailing spaces just in case
+                             char *end = image_ptr + strlen(image_ptr) - 1;
+                             while (end > image_ptr && isspace(*end)) *end-- = '\0';
+                        }
+                        
+                        if (!name_ptr || start_price <= 0) {
+                            const char *msg = "ERROR CREATE_ITEM invalid parameters\n";
                             send(s, msg, (int)strlen(msg), 0);
                             continue;
                         }
 
-                        int room_id = clientRoomIds[i];
-
                         char err[256];
                         int item_id = 0;
-                        int ok = item_create(clientUserIds[i], room_id, name,
+                        // Use pointers directly (zero copy)
+                        int ok = item_create(clientUserIds[i], clientRoomIds[i], name_ptr,
                                              start_price, buy_now_price,
-                                             image_url,
+                                             image_ptr, // Can be NULL
                                              &item_id, err, sizeof(err));
                         if (ok == 1) {
                             char resp[128];
@@ -587,6 +802,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                                      "ERROR CREATE_ITEM %s\n", err);
                             send(s, resp, (int)strlen(resp), 0);
                         }
+                        // No malloc, no free needed for image_url
                     }
 
                     // ================== LIST_ITEMS ==================
@@ -612,9 +828,19 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
 
                         char err[256];
-                        char out[4096];
+
+                        
+                        // Use heap buffer for output (max 8MB)
+                        size_t outCap = 8 * 1024 * 1024;
+                        char *out = (char*)malloc(outCap);
+                        if (!out) {
+                             const char *msg = "ERROR Server out of memory\n";
+                             send(s, msg, (int)strlen(msg), 0);
+                             continue;
+                        }
+                        
                         int ok = item_list_by_room(room_id,
-                                                   out, sizeof(out),
+                                                   out, outCap,
                                                    err, sizeof(err));
                         if (ok == 1) {
                             send(s, out, (int)strlen(out), 0);
@@ -624,6 +850,8 @@ if (FD_ISSET(listenSock, &readfds)) {
                                      "ERROR LIST_ITEMS %s\n", err);
                             send(s, resp, (int)strlen(resp), 0);
                         }
+                        
+                        free(out);
                     }
 
                     // ================== DELETE_ITEM ==================
@@ -966,9 +1194,25 @@ else if (strcmp(cmd, "BID") == 0) {
                         const char *msg = "UNKNOWN COMMAND\n";
                         send(s, msg, (int)strlen(msg), 0);
                     }
-                }
-            }
-        }
+                    // } removed
+
+                    
+                    // --- END EXISTING LOGIC ---
+                    
+                    // SHIFT BUFFER
+                    int processed_len = (newline - clientBuffers[i]) + 1;
+                    int remaining = clientBufLen[i] - processed_len;
+                    if (remaining > 0) {
+                        memmove(clientBuffers[i], newline + 1, remaining);
+                    }
+                    clientBufLen[i] = remaining;
+                    clientBuffers[i][clientBufLen[i]] = '\0';
+                 } // End while
+              } // End if buffer check
+           } // End else
+        } // End FD_ISSET
+     }
+
     }
 
     closesocket(listenSock);

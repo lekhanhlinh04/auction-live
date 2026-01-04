@@ -18,6 +18,9 @@ if (!roomIdParam) {
 
 // Đảm bảo roomId là số
 const roomId = parseInt(roomIdParam, 10);
+
+// ID chủ phòng (sẽ được cập nhật khi load thông tin phòng)
+let roomOwnerId = 0;
 if (isNaN(roomId) || roomId <= 0) {
     alert("ID phòng không hợp lệ!");
     window.location.href = "home.html";
@@ -31,6 +34,13 @@ function joinRoomAndLoadItems() {
     console.log("📦 Gửi lệnh JOIN_ROOM và LIST_ITEMS...");
     sendPacket({ type: "JOIN_ROOM", roomId: roomId });
     loadItems();
+    loadRoomInfo(); // Load thông tin phòng
+}
+
+// Load thông tin phòng (owner, số người)
+function loadRoomInfo() {
+    sendPacket({ type: "LIST_ROOMS" });
+    sendPacket({ type: "LIST_ROOM_MEMBERS", roomId: roomId });
 }
 
 // Callback được gọi khi login thành công (từ ws.js)
@@ -329,8 +339,18 @@ window.onServerMessage = function (msg) {
         loadItems();
     }
     else if (msg.startsWith("OK BID")) {
-        showToast("✅ Đặt giá thành công!", 'success', 2000);
+        showToast("Đặt giá thành công!", 'success', 2000);
         console.log("Đặt giá thành công (chờ NEW_BID để update UI)");
+    }
+    else if (msg.startsWith("OK BUY_NOW")) {
+        // Format: OK BUY_NOW itemId price
+        const parts = msg.split(" ");
+        const itemId = parseInt(parts[2]);
+        const price = parseInt(parts[3]);
+        showToast(`Mua ngay thành công! Giá: ${price.toLocaleString()} đ`, 'success', 4000);
+        showConfetti();
+        clearStage();
+        loadItems();
     }
 
 
@@ -339,11 +359,174 @@ window.onServerMessage = function (msg) {
         processBidHistory(msg);
     }
 
+    // --- J. THÔNG TIN PHÒNG ---
+    else if (msg.startsWith("ROOM ")) {
+        processRoomInfo(msg);
+    }
+
+    // --- K. DANH SÁCH THÀNH VIÊN PHÒNG ---
+    else if (msg.startsWith("MEMBER ") || msg.startsWith("NO_MEMBERS")) {
+        processRoomMembers(msg);
+    }
+
+    // --- L. USER JOINED (Realtime) ---
+    else if (msg.startsWith("USER_JOINED ")) {
+        const parts = msg.split(" ");
+        const userId = parseInt(parts[1]);
+        const username = parts[2] || "User";
+        addMemberToList(userId, username);
+        showToast(`${username} đã vào phòng`, 'info', 2000);
+    }
+
+    // --- M. USER LEFT (Realtime) ---
+    else if (msg.startsWith("USER_LEFT ")) {
+        const parts = msg.split(" ");
+        const userId = parseInt(parts[1]);
+        removeMemberFromList(userId);
+    }
+
+    // --- N. LỆNH PHÒNG (OPEN/CLOSE) ---
+    else if (msg.startsWith("OK CLOSE_ROOM")) {
+        showToast("🔒 Đã đóng phòng đấu giá", 'info', 3000);
+        roomStatus = 0;
+        document.getElementById("room-owner-display").innerText += " (ĐÃ ĐÓNG)";
+        closeSettingsModal();
+        if (roomOwnerId !== currentUser.id) {
+            alert("Phòng đấu giá đã bị chủ phòng đóng.");
+        }
+    }
+    else if (msg.startsWith("OK OPEN_ROOM")) {
+        showToast("🔓 Đã mở lại phòng đấu giá", 'success', 3000);
+        roomStatus = 1;
+        const ownerElem = document.getElementById("room-owner-display");
+        if (ownerElem) ownerElem.innerText = ownerElem.innerText.replace(" (ĐÃ ĐÓNG)", "");
+        closeSettingsModal();
+    }
+
     // --- H. LỖI ---
     else if (msg.startsWith("ERROR")) {
-        showToast("❌ " + msg.replace("ERROR ", ""), 'error', 4000);
+        showToast(msg.replace("ERROR ", ""), 'error', 4000);
     }
 };
+
+// ... (existing code) ...
+
+// --- SETTINGS MODAL ---
+function openSettingsModal() {
+    const modal = document.getElementById("modal-settings");
+    if (!modal) return;
+
+    modal.style.display = "flex";
+
+    // Cập nhật trạng thái
+    const statusText = document.getElementById("room-status-text");
+    const btnClose = document.getElementById("btn-close-room");
+    const btnOpen = document.getElementById("btn-open-room");
+
+    if (roomStatus === 1) {
+        statusText.innerHTML = "Trạng thái: <strong style='color:#38ef7d'>ĐANG MỞ</strong>";
+        if (btnClose) btnClose.style.display = "block";
+        if (btnOpen) btnOpen.style.display = "none";
+    } else {
+        statusText.innerHTML = "Trạng thái: <strong style='color:#ff416c'>ĐÃ ĐÓNG</strong>";
+        if (btnClose) btnClose.style.display = "none";
+        if (btnOpen) btnOpen.style.display = "block";
+    }
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById("modal-settings");
+    if (modal) modal.style.display = "none";
+}
+
+function sendCloseRoom() {
+    if (confirm("Bạn có chắc muốn ĐÓNG phòng đấu giá? Người khác sẽ không thể tham gia.")) {
+        sendPacket({ type: "CLOSE_ROOM", roomId: roomId });
+    }
+}
+
+function sendOpenRoom() {
+    if (confirm("Bạn có chắc muốn MỞ lại phòng đấu giá?")) {
+        sendPacket({ type: "OPEN_ROOM", roomId: roomId });
+    }
+}
+
+// --- CREATE ITEM MODAL ---
+function openCreateItemModal() {
+    const modal = document.getElementById("modal-create-item");
+    if (modal) {
+        modal.style.display = "flex";
+        // Reset inputs
+        document.getElementById("inp-item-name").value = "";
+        document.getElementById("inp-item-image").value = "";
+        document.getElementById("inp-file-upload").value = "";
+        document.getElementById("inp-item-price").value = "";
+        document.getElementById("inp-item-buynow").value = "";
+        document.getElementById("preview-img").src = "";
+        document.getElementById("image-preview").style.display = "none";
+    }
+}
+
+function closeModalItem() {
+    const modal = document.getElementById("modal-create-item");
+    if (modal) modal.style.display = "none";
+}
+
+function handleFileUpload(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+
+        // Kiểm tra kích thước <= 5MB 
+        if (file.size > 5 * 1024 * 1024) {
+            alert("Vui lòng chọn ảnh nhỏ hơn 5MB.");
+            input.value = ""; // Reset
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const base64 = e.target.result;
+
+            document.getElementById("preview-img").src = base64;
+            document.getElementById("image-preview").style.display = "block";
+
+            // Set giá trị vào input hidden/text để gửi đi
+            document.getElementById("inp-item-image").value = base64;
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function confirmCreateItem() {
+    const name = document.getElementById("inp-item-name").value.trim();
+    const price = parseInt(document.getElementById("inp-item-price").value);
+    const buyNow = parseInt(document.getElementById("inp-item-buynow").value) || 0;
+    let imageUrl = document.getElementById("inp-item-image").value.trim();
+
+    if (!name || isNaN(price) || price <= 0) {
+        alert("Vui lòng nhập tên và giá khởi điểm hợp lệ!");
+        return;
+    }
+
+    // Replace space in name
+    const safeName = name.replace(/\s+/g, '_');
+
+    // Nếu không có ảnh, dùng NOIMG hoặc placeholder
+    if (!imageUrl) {
+        imageUrl = "NOIMG";
+    }
+
+    // Gửi lệnh
+    sendPacket({
+        type: "CREATE_ITEM",
+        name: safeName,
+        startPrice: price,
+        buyNowPrice: buyNow,
+        imageUrl: imageUrl
+    });
+
+    closeModalItem();
+}
 
 // ============================================================
 // 3. XỬ LÝ DỮ LIỆU & RENDER HÀNG ĐỢI (QUEUE)
@@ -368,17 +551,34 @@ function processItemList(textData) {
 
             if (parts.length >= 9) {
                 // Xử lý ngày tháng: Server C gửi "YYYY-MM-DD HH:MM:SS" (có khoảng trắng)
-                // Nên parts[11] là ngày, parts[12] là giờ, parts[13] là imageUrl
+                // Xử lý Dynamic Token length do timestamp có khoảng trắng
+                // WAIT: ITEM ... status(8) queue(9) NULL(10) NULL(11) img(12) -> Len 13
+                // ONGOING: ... status(8) queue(9) Date(10) Time(11) Date(12) Time(13) img(14) -> Len 15
+
+                let imageUrl = "";
                 let endTimeStr = null;
+
+                // Image luôn là phần tử cuối cùng
                 if (parts.length >= 13) {
-                    endTimeStr = parts[11] + " " + parts[12];
+                    imageUrl = parts[parts.length - 1];
+                    if (imageUrl === "NOIMG") imageUrl = "";
                 }
 
-                // imageUrl ở vị trí cuối cùng (sau datetime)
-                let imageUrl = "";
-                if (parts.length >= 14) {
-                    imageUrl = parts[13];
-                    if (imageUrl === "NOIMG") imageUrl = "";
+                // EndTime
+                if (parts.length >= 15) {
+                    // YYYY-MM-DD HH:MM:SS
+                    // EndDate = parts[12], EndTime = parts[13]
+                    // Nếu index chuẩn: 0..9 fix. 
+                    // Start(10,11), End(12,13)
+                    endTimeStr = parts[12] + " " + parts[13];
+                } else if (parts.length === 13) {
+                    // NULL NULL -> endTimeStr = null
+                } else {
+                    // Fallback logic cũ (hoặc lỗi)
+                    if (parts.length >= 13 && parts[11] !== "NULL") {
+                        // Có thể trường hợp start NULL end có value? (Hiếm)
+                        // Thường start/end đi cặp
+                    }
                 }
 
                 const item = {
@@ -387,14 +587,17 @@ function processItemList(textData) {
                     sellerName: parts[4].replace(/_/g, ' '),
                     name: parts[5].replace(/_/g, ' '),
                     price: parseInt(parts[6]),
+                    buyNowPrice: parseInt(parts[7]) || 0, // Giá mua ngay
                     status: parts[8], // 'ONGOING', 'WAIT', 'SOLD', 'EXPIRED'
                     endTime: endTimeStr,
                     imageUrl: imageUrl
                 };
                 allItems.push(item);
 
-                // 1. Render vào cột phải
-                renderQueueItem(item, queueContainer);
+                // 1. Chỉ render items ONGOING hoặc WAIT vào cột phải
+                if (item.status === 'ONGOING' || item.status === 'WAIT') {
+                    renderQueueItem(item, queueContainer);
+                }
 
                 // 2. Nếu đang ONGOING -> Đưa lên sân khấu ngay (Fix lỗi F5)
                 if (item.status === 'ONGOING') {
@@ -443,28 +646,32 @@ function renderQueueItem(item, container) {
 
     // Trạng thái đang đấu
     if (item.status === 'ONGOING') {
-        statusHtml = `<span class="q-status running">Đang đấu</span>`;
-        actionHtml = `<span style="color:red; font-weight:bold"><i class="fa-solid fa-circle-play"></i> LIVE</span>`;
-        div.style.backgroundColor = "#fff0f0"; // Highlight nhẹ
+        statusHtml = `<span class="q-status running">LIVE</span>`;
+        actionHtml = `<span class="q-live-indicator"><i class="fa-solid fa-circle"></i></span>`;
+        div.style.backgroundColor = "rgba(255, 65, 108, 0.1)";
     }
     // Trạng thái chờ
     else if (item.status === 'WAIT') {
-        statusHtml = `<span class="q-status waiting">Hàng chờ</span>`;
-        // Nút Bắt đầu cho chủ phòng (Demo: Ai cũng thấy, server check quyền)
-        actionHtml = `<button class="btn-start-now" onclick="startAuction(${item.id})">
-                        <i class="fa-solid fa-play"></i> Bắt đầu
-                      </button>`;
-        // Chỉ hiện nút Xóa nếu mình là chủ sở hữu
-        if (item.sellerId == currentUser.id) {
-            actionHtml += `<button class="btn-delete" onclick="event.stopPropagation(); deleteItem(${item.id})" title="Xóa">
+        statusHtml = `<span class="q-status waiting">CHỜ</span>`;
+        actionHtml = `<div class="q-actions">
+                        <button class="btn-icon btn-play" onclick="startAuction(${item.id})" title="Bắt đầu đấu giá">
+                            <i class="fa-solid fa-play"></i>
+                        </button>`;
+        if (item.sellerId == currentUser.id || roomOwnerId == currentUser.id) {
+            actionHtml += `<button class="btn-icon btn-trash" onclick="event.stopPropagation(); deleteItem(${item.id})" title="Xóa">
                             <i class="fa-solid fa-trash"></i>
                           </button>`;
         }
+        actionHtml += `</div>`;
     }
     // Trạng thái kết thúc
     else {
         statusHtml = `<span class="q-status finished">${item.status}</span>`;
-        actionHtml = `<span style="color:green; font-weight:800">${item.price.toLocaleString()} đ</span>`;
+        actionHtml = `<div class="q-actions">
+                        <button class="btn-icon btn-info-icon" onclick="showItemInfo(${item.id}, '${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.status}')" title="Xem chi tiết">
+                            <i class="fa-solid fa-circle-info"></i>
+                        </button>
+                      </div>`;
     }
 
     div.innerHTML = `
@@ -473,6 +680,141 @@ function renderQueueItem(item, container) {
         <div class="q-time">${actionHtml}</div>
     `;
     container.appendChild(div);
+}
+
+// Trạng thái phòng: 1=OPEN, 0=CLOSED
+let roomStatus = 1;
+
+// Xử lý thông tin phòng từ server
+function processRoomInfo(textData) {
+    const lines = textData.split("\n");
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line.startsWith("ROOM ")) return;
+
+        // Format: ROOM id name ownerId ownerName status
+        const parts = line.split(" ");
+        if (parts.length >= 5) {
+            const id = parseInt(parts[1]);
+            const name = parts[2].replace(/_/g, ' ');
+            const ownerId = parseInt(parts[3]);
+            const ownerName = parts[4].replace(/_/g, ' ');
+            const status = parts.length >= 6 ? parseInt(parts[5]) : 1;
+
+            // Chỉ cập nhật nếu đây là phòng hiện tại
+            if (id === roomId) {
+                roomOwnerId = ownerId; // Lưu ID chủ phòng
+                roomStatus = status;   // Lưu trạng thái phòng
+
+                const ownerElem = document.getElementById("room-owner-display");
+                if (ownerElem) {
+                    ownerElem.innerText = ownerName + (status === 0 ? " (ĐÃ ĐÓNG)" : "");
+                }
+
+                // Nếu là chủ phòng, hiện nút Cài đặt
+                const actionsBtn = document.querySelector(".room-actions-btn");
+                if (actionsBtn && roomOwnerId === currentUser.id && !document.getElementById("btn-room-settings")) {
+                    const btn = document.createElement("button");
+                    btn.id = "btn-room-settings";
+                    btn.className = "btn-icon";
+                    btn.style.cssText = "background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; width:40px; height:40px; border-radius:8px; margin-left:10px; cursor:pointer;";
+                    btn.innerHTML = '<i class="fa-solid fa-cog"></i>';
+                    btn.onclick = openSettingsModal;
+                    btn.title = "Cài đặt phòng";
+                    actionsBtn.appendChild(btn);
+                }
+
+                // Re-render queue để cập nhật nút xóa cho chủ phòng
+                rerenderQueue();
+            }
+        }
+    });
+}
+
+// Lưu danh sách thành viên phòng
+let roomMembers = [];
+
+// Xử lý danh sách thành viên phòng từ server
+function processRoomMembers(textData) {
+    const list = document.getElementById("participant-list");
+    if (!list) return;
+
+    roomMembers = [];
+    list.innerHTML = "";
+
+    if (textData.trim() === "NO_MEMBERS") {
+        list.innerHTML = '<div class="no-participants">Chưa có ai trong phòng</div>';
+        updateUserCount();
+        return;
+    }
+
+    const lines = textData.split("\n");
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line.startsWith("MEMBER ")) return;
+
+        const parts = line.split(" ");
+        if (parts.length >= 3) {
+            const userId = parseInt(parts[1]);
+            const username = parts[2];
+            roomMembers.push({ userId, username });
+        }
+    });
+
+    renderMembersList();
+    updateUserCount();
+}
+
+// Render danh sách thành viên
+function renderMembersList() {
+    const list = document.getElementById("participant-list");
+    if (!list) return;
+
+    list.innerHTML = "";
+
+    if (roomMembers.length === 0) {
+        list.innerHTML = '<div class="no-participants">Chưa có ai trong phòng</div>';
+        return;
+    }
+
+    roomMembers.forEach((member, index) => {
+        const isMe = member.userId == currentUser.id;
+        const html = `
+            <div class="user-card ${isMe ? 'me' : ''}" data-user-id="${member.userId}">
+                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(member.username)}&background=random">
+                <div class="u-info">
+                    <span class="u-name">${member.username}${isMe ? ' (Bạn)' : ''}</span>
+                    <span class="u-role">Thành viên</span>
+                </div>
+            </div>
+        `;
+        list.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+// Thêm thành viên mới (realtime)
+function addMemberToList(userId, username) {
+    // Kiểm tra trùng
+    if (roomMembers.find(m => m.userId === userId)) return;
+
+    roomMembers.push({ userId, username });
+    renderMembersList();
+    updateUserCount();
+}
+
+// Xóa thành viên (realtime)
+function removeMemberFromList(userId) {
+    roomMembers = roomMembers.filter(m => m.userId !== userId);
+    renderMembersList();
+    updateUserCount();
+}
+
+// Cập nhật số người
+function updateUserCount() {
+    const userCountElem = document.getElementById("user-count");
+    if (userCountElem) {
+        userCountElem.innerText = roomMembers.length;
+    }
 }
 
 // Re-render hàng đợi từ allItems local (không cần gọi server)
@@ -519,6 +861,16 @@ function renderMainStage(item, secondsLeft) {
                 <div class="current-price-label">Giá hiện tại:</div>
                 <div class="current-price-val" id="live-price">${item.price.toLocaleString()} VND</div>
             </div>
+
+            ${item.buyNowPrice > 0 ? `
+            <div class="buy-now-box" style="background:linear-gradient(135deg,#ff416c,#ff4b2b);padding:15px;border-radius:12px;margin-bottom:20px;text-align:center;">
+                <div style="color:#fff;font-size:0.9rem;margin-bottom:5px;">Mua ngay với giá:</div>
+                <div style="color:#fff;font-weight:700;font-size:1.3rem;margin-bottom:10px;">${item.buyNowPrice.toLocaleString()} VND</div>
+                <button class="btn-buy-now" onclick="buyNow(${item.id}, ${item.buyNowPrice})" style="background:#fff;color:#ff416c;border:none;padding:10px 30px;border-radius:25px;font-weight:700;cursor:pointer;font-size:1rem;transition:all 0.3s;">
+                    <i class="fa-solid fa-bolt"></i> MUA NGAY
+                </button>
+            </div>
+            ` : ''}
 
             <div class="bid-control">
                 <label>Đặt giá nhanh:</label>
@@ -731,6 +1083,12 @@ function updateParticipantsFromHistory() {
         list.insertAdjacentHTML('beforeend', html);
     });
 
+    // Cập nhật số người tham gia
+    const userCountElem = document.getElementById("user-count");
+    if (userCountElem) {
+        userCountElem.innerText = seenUsers.size;
+    }
+
     if (bidHistory.length === 0) {
         list.innerHTML = '<div class="no-participants">Chưa có ai tham gia</div>';
     }
@@ -898,6 +1256,22 @@ function placeBid(itemId) {
     inp.value = ""; // Xóa input
 }
 
+// Mua ngay với giá buy_now_price
+function buyNow(itemId, buyNowPrice) {
+    const item = allItems.find(i => i.id === itemId);
+    const itemName = item ? item.name : `Item #${itemId}`;
+    const price = buyNowPrice || (item ? item.buyNowPrice : 0);
+
+    if (price <= 0) {
+        showToast("Vật phẩm này không có giá mua ngay", "error");
+        return;
+    }
+
+    if (confirm(`Xác nhận mua ngay "${itemName}" với giá ${price.toLocaleString()} đ?`)) {
+        sendPacket({ type: "BUY_NOW", itemId: itemId });
+    }
+}
+
 function backToLobby() {
     if (confirm("Rời khỏi phòng đấu giá?")) {
         sendPacket({ type: "LEAVE_ROOM" });
@@ -1000,4 +1374,81 @@ function deleteItem(itemId) {
     if (confirm("Bạn có chắc muốn xóa vật phẩm này?")) {
         sendPacket({ type: "DELETE_ITEM", itemId: itemId });
     }
+}
+
+// Hiển thị thông tin vật phẩm
+function showItemInfo(itemId, itemName, price, status) {
+    const statusText = status === 'SOLD' ? 'Đã bán' : 'Hết hạn';
+    const priceText = price.toLocaleString() + ' đ';
+    showToast(`Tên: ${itemName}<br>Giá: ${priceText}<br>Trạng thái: ${statusText}`, 'info', 4000);
+}
+
+// Hiển thị modal tất cả phiên đấu giá
+function showAllAuctions() {
+    const modal = document.getElementById("modal-all-auctions");
+    const list = document.getElementById("all-auctions-list");
+    if (!modal || !list) return;
+
+    list.innerHTML = "";
+
+    if (allItems.length === 0) {
+        list.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">Chưa có phiên đấu giá nào</p>';
+    } else {
+        allItems.forEach(item => {
+            let statusClass = '';
+            let statusText = '';
+            switch (item.status) {
+                case 'ONGOING':
+                    statusClass = 'running';
+                    statusText = 'ĐANG DIỄN RA';
+                    break;
+                case 'WAIT':
+                    statusClass = 'waiting';
+                    statusText = 'CHỜ ĐẤU GIÁ';
+                    break;
+                case 'SOLD':
+                    statusClass = 'finished';
+                    statusText = 'ĐÃ BÁN';
+                    break;
+                case 'EXPIRED':
+                    statusClass = 'finished';
+                    statusText = 'HẾT HẠN';
+                    break;
+                default:
+                    statusClass = '';
+                    statusText = item.status;
+            }
+
+            // Use placeholder if no image
+            const imgUrl = item.imageUrl && item.imageUrl.length > 5
+                ? item.imageUrl
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=667eea&color=fff&size=60`;
+
+            const html = `
+                <div class="auction-detail-item" style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:10px;">
+                    <img src="${imgUrl}" 
+                         style="width:50px;height:50px;min-width:50px;object-fit:cover;border-radius:8px;border:2px solid rgba(102,126,234,0.3);"
+                         onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=667eea&color=fff&size=50'">
+                    <div style="flex:1;min-width:0;overflow:hidden;">
+                        <div style="font-weight:600;color:#fff;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.name}">${item.name}</div>
+                        <div style="font-size:0.8rem;color:#a8b5ff;">
+                            ${item.status === 'SOLD' ? 'Giá bán:' : (item.status === 'EXPIRED' ? 'Giá KĐ:' : 'Giá hiện tại:')} <strong style="color:#38ef7d;">${item.price.toLocaleString()} đ</strong>
+                            ${item.buyNowPrice > 0 && item.status !== 'SOLD' ? `<span style="color:#ff6b8a;margin-left:8px;font-size:0.7rem;">(Mua ngay: ${item.buyNowPrice.toLocaleString()}đ)</span>` : ''}
+                        </div>
+                        <div style="font-size:0.75rem;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Người bán: ${item.sellerName}</div>
+                    </div>
+                    <span class="q-status ${statusClass}" style="padding:5px 10px;font-size:0.7rem;flex-shrink:0;">${statusText}</span>
+                </div>
+            `;
+            list.insertAdjacentHTML('beforeend', html);
+        });
+    }
+
+    modal.style.display = "flex";
+}
+
+// Đóng modal tất cả phiên đấu giá
+function closeAllAuctionsModal() {
+    const modal = document.getElementById("modal-all-auctions");
+    if (modal) modal.style.display = "none";
 }

@@ -476,26 +476,22 @@ body {
     margin-bottom: 15px;
     max-height: 450px;
     overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE/Edge */
 }
 
 .queue-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.queue-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-}
-
-.queue-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
+    display: none;
+    /* Chrome/Safari/Opera */
 }
 
 .queue-item {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: minmax(80px, 1.5fr) auto minmax(90px, auto);
+    gap: 8px;
     padding: 14px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     align-items: center;
@@ -552,6 +548,7 @@ body {
     text-align: right;
     color: rgba(255, 255, 255, 0.7);
     font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 .btn-start-now {
@@ -569,6 +566,78 @@ body {
 .btn-start-now:hover {
     transform: scale(1.05);
     box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Queue Action Buttons - Icon Only */
+.q-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 10;
+}
+
+.btn-icon.btn-play {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+}
+
+.btn-icon.btn-play:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(17, 153, 142, 0.5);
+}
+
+.btn-icon.btn-trash {
+    background: rgba(255, 65, 108, 0.2);
+    color: #ff6b8a;
+}
+
+.btn-icon.btn-trash:hover {
+    background: rgba(255, 65, 108, 0.4);
+    transform: scale(1.15);
+}
+
+.btn-icon.btn-info-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.btn-icon.btn-info-icon:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
+}
+
+.q-live-indicator {
+    color: #ff416c;
+    font-size: 0.6rem;
+    animation: livePulse 1s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }
 
 /* Empty Stage */

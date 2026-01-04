@@ -41,5 +41,20 @@ int room_leave(int user_id, int room_id,
 int room_close(int user_id, int room_id,
                char *errMsg, size_t errSize);
 
+// Mở lại phòng (chỉ chủ phòng).
+// - Kiểm tra owner_id == user_id
+// - Set rooms.status = 1 (OPEN)
+// return: 1 = OK, 0 = lỗi.
+int room_open(int user_id, int room_id,
+              char *errMsg, size_t errSize);
+
+// Liệt kê thành viên đang ở trong phòng.
+// out_buf: "MEMBER userId username\n" cho mỗi thành viên
+// Nếu không có -> "NO_MEMBERS\n"
+// return: 1 = OK, 0 = lỗi
+int room_list_members(int room_id,
+                      char *out_buf, size_t buf_size,
+                      char *errMsg, size_t errSize);
+
 #endif
 

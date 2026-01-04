@@ -99,7 +99,7 @@
                 <div class="queue-list" id="queue-list-container">
                     <p class="text-muted">Đang tải danh sách...</p>
                 </div>
-                <button class="btn-view-all">Xem chi tiết</button>
+                <button class="btn-view-all" onclick="showAllAuctions()">Xem chi tiết</button>
             </div>
 
         </div>
@@ -117,12 +117,20 @@
                 </div>
                 <div class="form-group">
                     <label>Hình ảnh sản phẩm</label>
-                    <input type="file" id="inp-item-image" accept="image/*" onchange="previewImage(this)">
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="inp-item-image" placeholder="Dán URL ảnh vào đây..." style="flex:1;">
+                        <label for="inp-file-upload" class="btn-icon"
+                            style="background:#667eea; color:white; cursor:pointer; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:8px;"
+                            title="Tải ảnh lên">
+                            <i class="fa-solid fa-upload"></i>
+                        </label>
+                        <input type="file" id="inp-file-upload" accept="image/*" style="display:none;"
+                            onchange="handleFileUpload(this)">
+                    </div>
                     <div id="image-preview" style="margin-top:10px; text-align:center; display:none;">
                         <img id="preview-img" src=""
-                            style="max-width:200px; max-height:150px; border-radius:8px; border:2px solid #667eea;">
+                            style="max-height:150px; border-radius:8px; border:1px solid #ddd;">
                     </div>
-                    <small style="color:#888">Chọn file ảnh từ máy tính</small>
                 </div>
                 <div class="form-group">
                     <label>Giá khởi điểm (VNĐ)</label>
@@ -136,6 +144,49 @@
                     <button class="btn-confirm" onclick="confirmCreateItem()">Đăng bán</button>
                     <button class="btn-cancel" onclick="closeModalItem()">Hủy</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="modal-settings" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-cog"></i> Cài đặt phòng</h2>
+            </div>
+            <div class="modal-body" style="text-align:center;">
+                <p id="room-status-text" style="margin-bottom:20px; font-size:1.1rem;">Trạng thái: <strong>...</strong>
+                </p>
+
+                <div id="settings-actions">
+                    <button id="btn-close-room" class="btn-cancel full-width" onclick="sendCloseRoom()"
+                        style="margin-bottom:10px;">
+                        <i class="fa-solid fa-lock"></i> Đóng phòng đấu giá
+                    </button>
+                    <button id="btn-open-room" class="btn-confirm full-width" onclick="sendOpenRoom()"
+                        style="margin-bottom:10px;">
+                        <i class="fa-solid fa-lock-open"></i> Mở phòng đấu giá
+                    </button>
+                </div>
+
+                <div class="modal-actions" style="margin-top:20px">
+                    <button class="btn-cancel full-width" onclick="closeSettingsModal()">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ALL AUCTIONS MODAL -->
+    <div id="modal-all-auctions" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px; max-height: 80vh;">
+            <div class="modal-header">
+                <h2>TẤT CẢ PHIÊN ĐẤU GIÁ</h2>
+            </div>
+            <div class="modal-body" style="overflow-y: auto; max-height: 60vh;">
+                <div id="all-auctions-list"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeAllAuctionsModal()">Đóng</button>
             </div>
         </div>
     </div>

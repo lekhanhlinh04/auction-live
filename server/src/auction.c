@@ -102,15 +102,14 @@ int auction_start(int user_id, int item_id, int duration_seconds,
         }
     }
 
-    //chặn BUY NOW ở DB khi đấu giá bắt đầu
+    //Bắt đầu đấu giá - giữ lại buy_now_price để có thể mua ngay
     snprintf(query, sizeof(query),
         "UPDATE items "
         "SET status='ONGOING', "
         "    auction_start = NOW(), "
         "    auction_end = DATE_ADD(NOW(), INTERVAL %d SECOND), "
         "    winner_id = NULL, "
-        "    final_price = NULL, "
-        "    buy_now_price = NULL "
+        "    final_price = NULL "
         "WHERE id = %d",
         duration_seconds, item_id);
 
@@ -292,7 +291,8 @@ int auction_buy_now(int user_id, int item_id,
         return 0;
     }
 
-    if (strcmp(status, "WAIT") != 0) {
+    // Cho phép mua ngay khi đang CHỜ hoặc ĐANG ĐẤU GIÁ
+    if (strcmp(status, "WAIT") != 0 && strcmp(status, "ONGOING") != 0) {
         snprintf(errMsg, errSize, "Buy-now not available");
         return 0;
     }

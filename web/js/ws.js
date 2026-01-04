@@ -41,9 +41,11 @@ function connectWS() {
         // Split theo newline để xử lý từng message riêng
         const messages = rawData.split("\n").filter(m => m.trim() !== "");
 
-        // Gom các message cùng loại lại (BID_RECORD, ITEM, etc.)
+        // Gom các message cùng loại lại (BID_RECORD, ITEM, MEMBER, ROOM etc.)
         let bidRecords = [];
         let itemRecords = [];
+        let memberRecords = [];
+        let roomRecords = [];
         let otherMessages = [];
 
         for (const msg of messages) {
@@ -51,6 +53,10 @@ function connectWS() {
                 bidRecords.push(msg);
             } else if (msg.startsWith("ITEM") || msg === "NO_ITEMS") {
                 itemRecords.push(msg);
+            } else if (msg.startsWith("MEMBER") || msg === "NO_MEMBERS") {
+                memberRecords.push(msg);
+            } else if (msg.startsWith("ROOM ") || msg === "NO_ROOMS") {
+                roomRecords.push(msg);
             } else {
                 otherMessages.push(msg);
             }
@@ -101,6 +107,16 @@ function connectWS() {
         // Gửi tất cả ITEM cùng lúc (join lại thành 1 string)
         if (itemRecords.length > 0 && typeof window.onServerMessage === "function") {
             window.onServerMessage(itemRecords.join("\n"));
+        }
+
+        // Gửi tất cả MEMBER cùng lúc
+        if (memberRecords.length > 0 && typeof window.onServerMessage === "function") {
+            window.onServerMessage(memberRecords.join("\n"));
+        }
+
+        // Gửi tất cả ROOM cùng lúc
+        if (roomRecords.length > 0 && typeof window.onServerMessage === "function") {
+            window.onServerMessage(roomRecords.join("\n"));
         }
     };
 
