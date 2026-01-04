@@ -107,6 +107,9 @@ wss.on('connection', function (ws) {
                 // Loại bỏ khoảng trắng trong name và đảm bảo giá trị số
                 const name = String(data.name).trim().replace(/\s+/g, '_');
                 const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : '';
+
+                console.log(`🔍 Gateway CREATE_ITEM: Name=${name}, ImgLen=${imageUrl.length}`);
+
                 if (imageUrl) {
                     command = `CREATE_ITEM ${name} ${data.startPrice} ${data.buyNowPrice} ${imageUrl}\n`;
                 } else {

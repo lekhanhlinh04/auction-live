@@ -121,8 +121,19 @@ int item_create(int seller_id, int room_id, const char *name,
         if(imgEsc) imgEsc[0] = '\0';
     }
 
+    // Tính toán kích thước buffer cần thiết cho query
+    // Base instruction ~500 chars + nameEsc + imgEsc + safety
+    size_t queryLen = 1024 + strlen(nameEsc) + (imgEsc ? strlen(imgEsc) : 0);
+    char *queryDynamic = (char*)malloc(queryLen);
+    
+    if (!queryDynamic) {
+        if(imgEsc) free(imgEsc);
+        snprintf(errMsg, errSize, "Server OOM for query");
+        return 0;
+    }
+
     if (buy_now_price > 0) {
-        snprintf(query, sizeof(query),
+        snprintf(queryDynamic, queryLen,
                  "INSERT INTO items("
                  "room_id, seller_id, name, description, "
                  "start_price, buy_now_price, "
@@ -137,7 +148,7 @@ int item_create(int seller_id, int room_id, const char *name,
                  start_price, buy_now_price,
                  next_order);
     } else {
-        snprintf(query, sizeof(query),
+        snprintf(queryDynamic, queryLen,
                  "INSERT INTO items("
                  "room_id, seller_id, name, description, "
                  "start_price, buy_now_price, "
@@ -152,17 +163,21 @@ int item_create(int seller_id, int room_id, const char *name,
                  start_price,
                  next_order);
     }
-    
+
     if (imgEsc) free(imgEsc);
 
-    if (mysql_query(conn, query) != 0) {
+    int ret = 0;
+    if (mysql_query(conn, queryDynamic) != 0) {
         snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
-        return 0;
+        ret = 0;
+    } else {
+        int item_id = (int)mysql_insert_id(conn);
+        if (out_item_id) *out_item_id = item_id;
+        ret = 1;
     }
-
-    int item_id = (int)mysql_insert_id(conn);
-    if (out_item_id) *out_item_id = item_id;
-    return 1;
+    
+    free(queryDynamic);
+    return ret;
 }
 
 int item_list_by_room(int room_id,

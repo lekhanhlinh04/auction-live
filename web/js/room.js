@@ -222,7 +222,9 @@ window.onServerMessage = function (msg) {
             if (imageUrl === "NOIMG") imageUrl = "";
         }
 
-        console.log("📢 AUCTION_STARTED received:", { itemId, startPrice, seconds, imageUrl });
+        console.log("📢 AUCTION_STARTED Raw Msg:", msg);
+        console.log("   - Parts count:", parts.length);
+        console.log("   - ImageUrl found:", imageUrl ? (imageUrl.substring(0, 50) + "...") : "EMPTY");
 
         // Tìm hoặc tạo item trong allItems
         let item = allItems.find(i => i.id === itemId);
@@ -460,82 +462,9 @@ function sendOpenRoom() {
     }
 }
 
-// --- CREATE ITEM MODAL ---
-function openCreateItemModal() {
-    const modal = document.getElementById("modal-create-item");
-    if (modal) {
-        modal.style.display = "flex";
-        // Reset inputs
-        document.getElementById("inp-item-name").value = "";
-        document.getElementById("inp-item-image").value = "";
-        document.getElementById("inp-file-upload").value = "";
-        document.getElementById("inp-item-price").value = "";
-        document.getElementById("inp-item-buynow").value = "";
-        document.getElementById("preview-img").src = "";
-        document.getElementById("image-preview").style.display = "none";
-    }
-}
+// (Removed duplicate functions)
 
-function closeModalItem() {
-    const modal = document.getElementById("modal-create-item");
-    if (modal) modal.style.display = "none";
-}
-
-function handleFileUpload(input) {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-
-        // Kiểm tra kích thước <= 5MB 
-        if (file.size > 5 * 1024 * 1024) {
-            alert("Vui lòng chọn ảnh nhỏ hơn 5MB.");
-            input.value = ""; // Reset
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            const base64 = e.target.result;
-
-            document.getElementById("preview-img").src = base64;
-            document.getElementById("image-preview").style.display = "block";
-
-            // Set giá trị vào input hidden/text để gửi đi
-            document.getElementById("inp-item-image").value = base64;
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
-function confirmCreateItem() {
-    const name = document.getElementById("inp-item-name").value.trim();
-    const price = parseInt(document.getElementById("inp-item-price").value);
-    const buyNow = parseInt(document.getElementById("inp-item-buynow").value) || 0;
-    let imageUrl = document.getElementById("inp-item-image").value.trim();
-
-    if (!name || isNaN(price) || price <= 0) {
-        alert("Vui lòng nhập tên và giá khởi điểm hợp lệ!");
-        return;
-    }
-
-    // Replace space in name
-    const safeName = name.replace(/\s+/g, '_');
-
-    // Nếu không có ảnh, dùng NOIMG hoặc placeholder
-    if (!imageUrl) {
-        imageUrl = "NOIMG";
-    }
-
-    // Gửi lệnh
-    sendPacket({
-        type: "CREATE_ITEM",
-        name: safeName,
-        startPrice: price,
-        buyNowPrice: buyNow,
-        imageUrl: imageUrl
-    });
-
-    closeModalItem();
-}
+// (Removed duplicate code block - see bottom of file for implementation)
 
 // ============================================================
 // 3. XỬ LÝ DỮ LIỆU & RENDER HÀNG ĐỢI (QUEUE)
@@ -1305,7 +1234,8 @@ function closeModalItem() {
 let selectedImageBase64 = "";
 
 // Preview ảnh khi chọn file
-function previewImage(input) {
+// Preview ảnh khi chọn file -> Rename to match room.html check
+function handleFileUpload(input) {
     const preview = document.getElementById("image-preview");
     const previewImg = document.getElementById("preview-img");
 
@@ -1355,6 +1285,12 @@ function confirmCreateItem() {
     }
 
     // Gửi lên server (server đã hỗ trợ buffer lớn 8MB để lưu ảnh base64)
+    console.log("📤 CREATE_ITEM: Preparing to send...");
+    console.log("   - Name:", itemKey);
+    console.log("   - Price:", price);
+    console.log("   - Image Length:", selectedImageBase64 ? selectedImageBase64.length : 0);
+    if (!selectedImageBase64) console.warn("⚠️ Warning: No image selected!");
+
     sendPacket({
         type: "CREATE_ITEM",
         name: itemKey,
