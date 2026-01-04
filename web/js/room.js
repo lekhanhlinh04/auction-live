@@ -282,6 +282,13 @@ window.onServerMessage = function (msg) {
         } else {
             console.log("⚠️ ItemId mismatch! Not updating UI. itemId:", itemId, "vs currentStageItemId:", currentStageItemId);
         }
+
+        // Update local state and queue list
+        const localItem = allItems.find(i => i.id === itemId);
+        if (localItem) {
+            localItem.price = newPrice;
+            rerenderQueue(); // Update price in sidebar/queue
+        }
     }
 
     // --- D. ĐỒNG BỘ THỜI GIAN (Server gửi khi < 30s) ---
@@ -800,7 +807,7 @@ function renderMainStage(item, secondsLeft) {
                 <div class="current-price-val" id="live-price">${item.price.toLocaleString()} VND</div>
             </div>
 
-            ${(item.buyNowPrice > 0 && item.price < item.buyNowPrice) ? `
+            ${(item.buyNowPrice > 0 && parseInt(item.price) < parseInt(item.buyNowPrice)) ? `
             <div class="buy-now-box" style="background:linear-gradient(135deg,#ff416c,#ff4b2b);padding:15px;border-radius:12px;margin-bottom:20px;text-align:center;">
                 <div style="color:#fff;font-size:0.9rem;margin-bottom:5px;">Mua ngay với giá:</div>
                 <div style="color:#fff;font-weight:700;font-size:1.3rem;margin-bottom:10px;">${item.buyNowPrice.toLocaleString()} VND</div>
@@ -869,6 +876,17 @@ function updateLiveAuctionUI(newPrice, userId, secondsLeft) {
 
     // 5. Reset đồng hồ
     startCountdown(secondsLeft);
+
+    // 6. Check logic ẩn nút Mua Ngay nếu giá đấu vượt giá mua ngay
+    const item = allItems.find(i => i.id === currentStageItemId);
+    if (item && item.buyNowPrice > 0) {
+        if (newPrice >= item.buyNowPrice) {
+            const buyNowBox = document.querySelector(".buy-now-box");
+            if (buyNowBox) {
+                buyNowBox.style.display = 'none'; // hoặc buyNowBox.remove()
+            }
+        }
+    }
 }
 
 // Quick bid - đặt giá nhanh với số tiền cố định
@@ -1291,6 +1309,13 @@ function confirmCreateItem() {
     console.log("   - Image Length:", selectedImageBase64 ? selectedImageBase64.length : 0);
     if (!selectedImageBase64) console.warn("⚠️ Warning: No image selected!");
 
+    // Visual feedback
+    if (selectedImageBase64) {
+        showToast("⏳ Đang tải ảnh lên...", "info");
+    } else {
+        showToast("⏳ Đang gửi yêu cầu...", "info");
+    }
+
     sendPacket({
         type: "CREATE_ITEM",
         name: itemKey,
@@ -1306,6 +1331,9 @@ function confirmCreateItem() {
     document.getElementById("inp-item-buynow").value = '';
     document.getElementById("image-preview").style.display = "none";
     selectedImageBase64 = "";
+
+    // Close immediately, feedback comes via toast or OK response
+    closeModalItem();
 }
 
 // Lấy ảnh từ localStorage
