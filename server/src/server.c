@@ -1003,15 +1003,45 @@ if (FD_ISSET(listenSock, &readfds)) {
                                      item_id, seconds_left);
                             send(s, resp, (int)strlen(resp), 0);
 
-                            // broadcast cho mọi người trong phòng:
-                            // AUCTION_STARTED itemId startPrice buyNow seconds
-                            char notify[256];
-                            snprintf(notify, sizeof(notify),
-                                     "AUCTION_STARTED %d %lld %lld %d\n",
-                                     item_id, start_price, buy_now_price,
-                                     seconds_left);
-                            broadcast_to_room(room_id, notify, strlen(notify),
-                                              clientSockets, clientRoomIds);
+                            // broadcast cho mọi người trong phòng kèm image
+                            char *notify = NULL;
+                            char q[128];
+                            snprintf(q, sizeof(q), "SELECT description FROM items WHERE id = %d", item_id);
+                            
+                            // Fetch image url (description)
+                            if (mysql_query(db_get_conn(), q) == 0) {
+                                MYSQL_RES *res = mysql_store_result(db_get_conn());
+                                if (res) {
+                                    MYSQL_ROW row = mysql_fetch_row(res);
+                                    const char *img = (row && row[0]) ? row[0] : "NOIMG";
+                                    
+                                    // Allocate buffer: 256 header + image length + safety
+                                    size_t msgLen = 256 + strlen(img) + 1;
+                                    notify = (char*)malloc(msgLen);
+                                    if (notify) {
+                                        snprintf(notify, msgLen,
+                                                 "AUCTION_STARTED %d %lld %lld %d %s\n",
+                                                 item_id, start_price, buy_now_price,
+                                                 seconds_left, img);
+                                    }
+                                    mysql_free_result(res);
+                                }
+                            }
+
+                            if (notify) {
+                                broadcast_to_room(room_id, notify, strlen(notify),
+                                                  clientSockets, clientRoomIds);
+                                free(notify);
+                            } else {
+                                // Fallback layout cũ nếu lỗi (hoặc OOM)
+                                char fallback[256];
+                                snprintf(fallback, sizeof(fallback),
+                                         "AUCTION_STARTED %d %lld %lld %d NOIMG\n",
+                                         item_id, start_price, buy_now_price,
+                                         seconds_left);
+                                broadcast_to_room(room_id, fallback, strlen(fallback),
+                                                  clientSockets, clientRoomIds);
+                            }
                         } else {
                             char resp[256];
                             snprintf(resp, sizeof(resp),

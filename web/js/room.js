@@ -215,7 +215,14 @@ window.onServerMessage = function (msg) {
         const startPrice = parseInt(parts[2]);
         const seconds = parseInt(parts[4]);
 
-        console.log("📢 AUCTION_STARTED received:", { itemId, startPrice, seconds });
+        let imageUrl = "";
+        // imageUrl is at index 5 if present
+        if (parts.length >= 6) {
+            imageUrl = parts[5];
+            if (imageUrl === "NOIMG") imageUrl = "";
+        }
+
+        console.log("📢 AUCTION_STARTED received:", { itemId, startPrice, seconds, imageUrl });
 
         // Tìm hoặc tạo item trong allItems
         let item = allItems.find(i => i.id === itemId);
@@ -224,6 +231,7 @@ window.onServerMessage = function (msg) {
             // Item đã có trong local -> cập nhật
             item.status = "ONGOING";
             item.price = startPrice;
+            if (imageUrl) item.imageUrl = imageUrl;
         } else {
             // Item chưa có trong local -> tạo item tạm
             item = {
@@ -231,7 +239,8 @@ window.onServerMessage = function (msg) {
                 name: "Sản phẩm #" + itemId,
                 price: startPrice,
                 status: "ONGOING",
-                sellerId: "?"
+                sellerId: "?",
+                imageUrl: imageUrl
             };
             allItems.push(item);
         }
@@ -1345,13 +1354,13 @@ function confirmCreateItem() {
         localStorage.setItem("itemImages", JSON.stringify(itemImages));
     }
 
-    // Gửi lên server (không gửi base64 vì quá lớn)
+    // Gửi lên server (server đã hỗ trợ buffer lớn 8MB để lưu ảnh base64)
     sendPacket({
         type: "CREATE_ITEM",
         name: itemKey,
         startPrice: parseInt(price),
         buyNowPrice: parseInt(buyNowPrice) || 0,
-        imageUrl: '' // Server không lưu base64
+        imageUrl: selectedImageBase64 || ''
     });
 
     // Clear form
