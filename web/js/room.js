@@ -800,7 +800,7 @@ function renderMainStage(item, secondsLeft) {
                 <div class="current-price-val" id="live-price">${item.price.toLocaleString()} VND</div>
             </div>
 
-            ${item.buyNowPrice > 0 ? `
+            ${(item.buyNowPrice > 0 && item.price < item.buyNowPrice) ? `
             <div class="buy-now-box" style="background:linear-gradient(135deg,#ff416c,#ff4b2b);padding:15px;border-radius:12px;margin-bottom:20px;text-align:center;">
                 <div style="color:#fff;font-size:0.9rem;margin-bottom:5px;">Mua ngay với giá:</div>
                 <div style="color:#fff;font-weight:700;font-size:1.3rem;margin-bottom:10px;">${item.buyNowPrice.toLocaleString()} VND</div>
