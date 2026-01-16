@@ -1,72 +1,57 @@
-// ============================================================
-// 1. CẤU HÌNH & KHỞI TẠO
-// ============================================================
 
-// Kiểm tra đăng nhập
+
 const userJson = localStorage.getItem("user");
 if (!userJson) window.location.href = "index.html";
 const currentUser = JSON.parse(userJson);
 
-// Đoạn code ở đầu file js/room.js
 const urlParams = new URLSearchParams(window.location.search);
-const roomIdParam = urlParams.get('id'); // Lấy số từ URL
+const roomIdParam = urlParams.get('id'); 
 
 if (!roomIdParam) {
     alert("Thiếu ID phòng!");
     window.location.href = "home.html";
 }
 
-// Đảm bảo roomId là số
 const roomId = parseInt(roomIdParam, 10);
 
-// ID chủ phòng (sẽ được cập nhật khi load thông tin phòng)
 let roomOwnerId = 0;
 if (isNaN(roomId) || roomId <= 0) {
     alert("ID phòng không hợp lệ!");
     window.location.href = "home.html";
 }
 
-// Hàm gửi lệnh vào phòng
 let hasJoinedRoom = false;
 function joinRoomAndLoadItems() {
-    if (hasJoinedRoom) return; // Tránh gọi 2 lần
+    if (hasJoinedRoom) return; 
     hasJoinedRoom = true;
     console.log("📦 Gửi lệnh JOIN_ROOM và LIST_ITEMS...");
     sendPacket({ type: "JOIN_ROOM", roomId: roomId });
     loadItems();
-    loadRoomInfo(); // Load thông tin phòng
+    loadRoomInfo(); 
 }
 
-// Load thông tin phòng (owner, số người)
 function loadRoomInfo() {
     sendPacket({ type: "LIST_ROOMS" });
     sendPacket({ type: "LIST_ROOM_MEMBERS", roomId: roomId });
 }
 
-// Callback được gọi khi login thành công (từ ws.js)
 window.onLoginSuccess = function () {
     console.log("🎉 onLoginSuccess callback - joining room...");
     joinRoomAndLoadItems();
 };
 
-// Fallback: nếu đã login sẵn hoặc callback không được gọi
 setTimeout(() => {
     joinRoomAndLoadItems();
 }, 1500);
 
-// Hiển thị thông tin người dùng và phòng
 document.getElementById("user-name").innerText = currentUser.username;
 document.getElementById("user-avatar").src = `https://ui-avatars.com/api/?name=${currentUser.username}&background=random`;
 document.getElementById("room-id-display").innerText = "R" + String(roomId).padStart(3, '0');
 
-// Biến toàn cục
-let timerInterval = null;     // ID của bộ đếm thời gian
-let currentStageItemId = 0;   // ID vật phẩm đang trên sân khấu
-let allItems = [];            // Lưu danh sách vật phẩm cục bộ
+let timerInterval = null;     
+let currentStageItemId = 0;   
+let allItems = [];            
 
-// ============================================================
-// TOAST NOTIFICATION SYSTEM
-// ============================================================
 function initToastContainer() {
     if (!document.querySelector('.toast-container')) {
         const container = document.createElement('div');
@@ -95,37 +80,24 @@ function showToast(message, type = 'info', duration = 4000) {
 
     container.appendChild(toast);
 
-    // Auto remove
     setTimeout(() => {
         toast.style.animation = 'slideOut 0.3s ease-out forwards';
         setTimeout(() => toast.remove(), 300);
     }, duration);
 }
 
-// Sound effects (optional - uncomment if you have audio files)
-// const bidSound = new Audio('sounds/bid.mp3');
-// const winSound = new Audio('sounds/win.mp3');
-
 function playBidSound() {
-    // bidSound.currentTime = 0;
-    // bidSound.play().catch(() => {});
-}
 
+}
 
 function loadItems() {
     sendPacket({ type: "LIST_ITEMS", roomId: roomId });
 }
 
-// ============================================================
-// CHAT FUNCTIONALITY
-// ============================================================
-
-// Xử lý nhận tin nhắn chat
 window.onChatMessage = function (data) {
     const container = document.getElementById("chat-messages");
     if (!container) return;
 
-    // Xóa welcome message nếu có
     const welcome = container.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
 
@@ -141,10 +113,9 @@ window.onChatMessage = function (data) {
     `;
 
     container.appendChild(msgDiv);
-    container.scrollTop = container.scrollHeight; // Auto-scroll xuống cuối
+    container.scrollTop = container.scrollHeight; 
 };
 
-// Gửi tin nhắn chat
 function sendChatMessage() {
     const input = document.getElementById("chat-input");
     if (!input) return;
@@ -162,32 +133,24 @@ function sendChatMessage() {
     input.value = "";
 }
 
-// Xử lý Enter để gửi tin nhắn
 function handleChatKeyPress(event) {
     if (event.key === "Enter") {
         sendChatMessage();
     }
 }
 
-// Escape HTML để tránh XSS
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// ============================================================
-// 2. XỬ LÝ TIN NHẮN TỪ SERVER (CORE LOGIC)
-// ============================================================
-
 window.onServerMessage = function (msg) {
-    // console.log("Room nhận:", msg); // Bật log này nếu muốn debug
 
-    // --- A. DANH SÁCH VẬT PHẨM (Load khi vào phòng hoặc F5) ---
     if (msg.startsWith("ITEM") || msg.startsWith("NO_ITEMS")) {
         processItemList(msg);
     }
-    // --- ITEM DELETED ---
+
     else if (msg.startsWith("ITEM_DELETED")) {
         const parts = msg.split(" ");
         const itemId = parseInt(parts[1]);
@@ -207,8 +170,6 @@ window.onServerMessage = function (msg) {
         showToast("Lỗi xóa: " + err, 'error');
     }
 
-    // --- B. BẮT ĐẦU ĐẤU GIÁ (Broadcast) ---
-    // Format: AUCTION_STARTED itemId startPrice buyNow seconds
     else if (msg.startsWith("AUCTION_STARTED")) {
         const parts = msg.split(" ");
         const itemId = parseInt(parts[1]);
@@ -216,7 +177,7 @@ window.onServerMessage = function (msg) {
         const seconds = parseInt(parts[4]);
 
         let imageUrl = "";
-        // imageUrl is at index 5 if present
+
         if (parts.length >= 6) {
             imageUrl = parts[5];
             if (imageUrl === "NOIMG") imageUrl = "";
@@ -226,16 +187,15 @@ window.onServerMessage = function (msg) {
         console.log("   - Parts count:", parts.length);
         console.log("   - ImageUrl found:", imageUrl ? (imageUrl.substring(0, 50) + "...") : "EMPTY");
 
-        // Tìm hoặc tạo item trong allItems
         let item = allItems.find(i => i.id === itemId);
 
         if (item) {
-            // Item đã có trong local -> cập nhật
+
             item.status = "ONGOING";
             item.price = startPrice;
             if (imageUrl) item.imageUrl = imageUrl;
         } else {
-            // Item chưa có trong local -> tạo item tạm
+
             item = {
                 id: itemId,
                 name: "Sản phẩm #" + itemId,
@@ -247,19 +207,13 @@ window.onServerMessage = function (msg) {
             allItems.push(item);
         }
 
-        // Render sân khấu ngay lập tức
         renderMainStage(item, seconds);
 
-        // Re-render hàng đợi ngay lập tức
         rerenderQueue();
 
-        // Gọi loadItems để lấy thông tin đầy đủ từ server
         loadItems();
     }
 
-
-    // --- C. CÓ NGƯỜI ĐẶT GIÁ MỚI (Broadcast) ---
-    // Format: NEW_BID itemId userId price seconds
     else if (msg.startsWith("NEW_BID")) {
         const parts = msg.split(" ");
         const itemId = parseInt(parts[1]);
@@ -269,12 +223,10 @@ window.onServerMessage = function (msg) {
 
         console.log("📣 NEW_BID received:", { itemId, userId, newPrice, seconds, currentStageItemId });
 
-        // Chỉ cập nhật nếu vật phẩm đó đang hiển thị trên sân khấu
         if (itemId === currentStageItemId) {
             console.log("✅ Updating UI with new price:", newPrice);
             updateLiveAuctionUI(newPrice, userId, seconds);
 
-            // Toast notification cho bid mới
             if (userId != currentUser.id) {
                 showToast(`🔥 User #${userId} đặt giá ${newPrice.toLocaleString()}đ`, 'warning', 3000);
                 playBidSound();
@@ -283,16 +235,13 @@ window.onServerMessage = function (msg) {
             console.log("⚠️ ItemId mismatch! Not updating UI. itemId:", itemId, "vs currentStageItemId:", currentStageItemId);
         }
 
-        // Update local state and queue list
         const localItem = allItems.find(i => i.id === itemId);
         if (localItem) {
             localItem.price = newPrice;
-            rerenderQueue(); // Update price in sidebar/queue
+            rerenderQueue(); 
         }
     }
 
-    // --- D. ĐỒNG BỘ THỜI GIAN (Server gửi khi < 30s) ---
-    // Format: TIME_LEFT itemId seconds
     else if (msg.startsWith("TIME_LEFT")) {
         const parts = msg.split(" ");
         const itemId = parseInt(parts[1]);
@@ -306,26 +255,24 @@ window.onServerMessage = function (msg) {
         }
     }
 
-    // --- E. KẾT THÚC / ĐÃ BÁN ---
     else if (msg.startsWith("AUCTION_FINISHED") || msg.startsWith("ITEM_SOLD")) {
-        // Format: AUCTION_FINISHED itemId winnerId finalPrice
+
         const parts = msg.split(" ");
         const winnerId = parts[2];
         const finalPrice = parseInt(parts[3]) || 0;
 
         if (winnerId == currentUser.id) {
             showToast(`🎉 Chúc mừng! Bạn đã thắng với giá ${finalPrice.toLocaleString()}đ!`, 'success', 6000);
-            showConfetti(); // Hiệu ứng pháo hoa
+            showConfetti(); 
         } else {
             showToast(`🔔 Phiên đấu giá kết thúc! Người thắng: User #${winnerId}`, 'info', 5000);
         }
 
-        bidHistory = []; // Reset lịch sử
-        loadItems(); // Load lại để hiển thị trạng thái SOLD
+        bidHistory = []; 
+        loadItems(); 
         clearStage();
     }
 
-    // --- F. HẾT GIỜ (KHÔNG AI MUA) ---
     else if (msg.startsWith("AUCTION_EXPIRED")) {
         const itemId = parseInt(msg.split(" ")[1]);
 
@@ -334,18 +281,16 @@ window.onServerMessage = function (msg) {
             clearStage();
         }
 
-        loadItems(); //BẮT BUỘC
+        loadItems(); 
     }
 
-
-    // --- G. CÁC PHẢN HỒI THÀNH CÔNG ---
     else if (msg.startsWith("OK CREATE_ITEM")) {
         showToast("✅ Đăng bán vật phẩm thành công!", 'success', 3000);
         loadItems();
         closeModalItem();
     }
     else if (msg.startsWith("OK START_AUCTION")) {
-        // Format: OK START_AUCTION itemId seconds
+
         const parts = msg.split(" ");
         const itemId = parseInt(parts[2]);
         const seconds = parseInt(parts[3]);
@@ -353,7 +298,6 @@ window.onServerMessage = function (msg) {
         console.log("📢 OK START_AUCTION received:", { itemId, seconds });
         showToast("🔔 Phiên đấu giá đã bắt đầu!", 'info', 3000);
 
-        // Load items ngay để lấy thông tin mới nhất và hiển thị
         loadItems();
     }
     else if (msg.startsWith("OK BID")) {
@@ -361,7 +305,7 @@ window.onServerMessage = function (msg) {
         console.log("Đặt giá thành công (chờ NEW_BID để update UI)");
     }
     else if (msg.startsWith("OK BUY_NOW")) {
-        // Format: OK BUY_NOW itemId price
+
         const parts = msg.split(" ");
         const itemId = parseInt(parts[2]);
         const price = parseInt(parts[3]);
@@ -371,23 +315,18 @@ window.onServerMessage = function (msg) {
         loadItems();
     }
 
-
-    // --- I. LỊCH SỬ ĐẤU GIÁ ---
     else if (msg.startsWith("BID_RECORD") || msg.startsWith("NO_BIDS")) {
         processBidHistory(msg);
     }
 
-    // --- J. THÔNG TIN PHÒNG ---
     else if (msg.startsWith("ROOM ")) {
         processRoomInfo(msg);
     }
 
-    // --- K. DANH SÁCH THÀNH VIÊN PHÒNG ---
     else if (msg.startsWith("MEMBER ") || msg.startsWith("NO_MEMBERS")) {
         processRoomMembers(msg);
     }
 
-    // --- L. USER JOINED (Realtime) ---
     else if (msg.startsWith("USER_JOINED ")) {
         const parts = msg.split(" ");
         const userId = parseInt(parts[1]);
@@ -396,14 +335,12 @@ window.onServerMessage = function (msg) {
         showToast(`${username} đã vào phòng`, 'info', 2000);
     }
 
-    // --- M. USER LEFT (Realtime) ---
     else if (msg.startsWith("USER_LEFT ")) {
         const parts = msg.split(" ");
         const userId = parseInt(parts[1]);
         removeMemberFromList(userId);
     }
 
-    // --- N. LỆNH PHÒNG (OPEN/CLOSE) ---
     else if (msg.startsWith("OK CLOSE_ROOM")) {
         showToast("🔒 Đã đóng phòng đấu giá", 'info', 3000);
         roomStatus = 0;
@@ -421,22 +358,17 @@ window.onServerMessage = function (msg) {
         closeSettingsModal();
     }
 
-    // --- H. LỖI ---
     else if (msg.startsWith("ERROR")) {
         showToast(msg.replace("ERROR ", ""), 'error', 4000);
     }
 };
 
-// ... (existing code) ...
-
-// --- SETTINGS MODAL ---
 function openSettingsModal() {
     const modal = document.getElementById("modal-settings");
     if (!modal) return;
 
     modal.style.display = "flex";
 
-    // Cập nhật trạng thái
     const statusText = document.getElementById("room-status-text");
     const btnClose = document.getElementById("btn-close-room");
     const btnOpen = document.getElementById("btn-open-room");
@@ -469,14 +401,6 @@ function sendOpenRoom() {
     }
 }
 
-// (Removed duplicate functions)
-
-// (Removed duplicate code block - see bottom of file for implementation)
-
-// ============================================================
-// 3. XỬ LÝ DỮ LIỆU & RENDER HÀNG ĐỢI (QUEUE)
-// ============================================================
-
 function processItemList(textData) {
     const queueContainer = document.getElementById("queue-list-container");
     if (!queueContainer) return;
@@ -491,38 +415,26 @@ function processItemList(textData) {
             line = line.trim();
             if (!line.startsWith("ITEM")) return;
 
-            // Format C: ITEM id room sellerId sellerName name start buy status queue start_time end_time imageUrl
             const parts = line.split(" ");
 
             if (parts.length >= 9) {
-                // Xử lý ngày tháng: Server C gửi "YYYY-MM-DD HH:MM:SS" (có khoảng trắng)
-                // Xử lý Dynamic Token length do timestamp có khoảng trắng
-                // WAIT: ITEM ... status(8) queue(9) NULL(10) NULL(11) img(12) -> Len 13
-                // ONGOING: ... status(8) queue(9) Date(10) Time(11) Date(12) Time(13) img(14) -> Len 15
 
                 let imageUrl = "";
                 let endTimeStr = null;
 
-                // Image luôn là phần tử cuối cùng
                 if (parts.length >= 13) {
                     imageUrl = parts[parts.length - 1];
                     if (imageUrl === "NOIMG") imageUrl = "";
                 }
 
-                // EndTime
                 if (parts.length >= 15) {
-                    // YYYY-MM-DD HH:MM:SS
-                    // EndDate = parts[12], EndTime = parts[13]
-                    // Nếu index chuẩn: 0..9 fix. 
-                    // Start(10,11), End(12,13)
                     endTimeStr = parts[12] + " " + parts[13];
                 } else if (parts.length === 13) {
-                    // NULL NULL -> endTimeStr = null
+
                 } else {
-                    // Fallback logic cũ (hoặc lỗi)
+
                     if (parts.length >= 13 && parts[11] !== "NULL") {
-                        // Có thể trường hợp start NULL end có value? (Hiếm)
-                        // Thường start/end đi cặp
+
                     }
                 }
 
@@ -532,27 +444,25 @@ function processItemList(textData) {
                     sellerName: parts[4].replace(/_/g, ' '),
                     name: parts[5].replace(/_/g, ' '),
                     price: parseInt(parts[6]),
-                    buyNowPrice: parseInt(parts[7]) || 0, // Giá mua ngay
-                    status: parts[8], // 'ONGOING', 'WAIT', 'SOLD', 'EXPIRED'
+                    buyNowPrice: parseInt(parts[7]) || 0, 
+                    status: parts[8], 
                     endTime: endTimeStr,
                     imageUrl: imageUrl
                 };
                 allItems.push(item);
 
-                // 1. Chỉ render items ONGOING hoặc WAIT vào cột phải
                 if (item.status === 'ONGOING' || item.status === 'WAIT') {
                     renderQueueItem(item, queueContainer);
                 }
 
-                // 2. Nếu đang ONGOING -> Đưa lên sân khấu ngay (Fix lỗi F5)
                 if (item.status === 'ONGOING') {
-                    // Nếu item này đang hiển thị và timer đang chạy -> không render lại
+
                     if (currentStageItemId === item.id && timerInterval) {
                         console.log("⏳ Item đang hiển thị với timer, bỏ qua render");
                         hasRunningItem = true;
                     } else {
-                        // Tính thời gian còn lại dựa trên endTime
-                        let secondsLeft = 120; // Default 2 phút nếu không tính được
+
+                        let secondsLeft = 120; 
                         if (item.endTime) {
                             const end = new Date(item.endTime);
                             const now = new Date();
@@ -563,7 +473,6 @@ function processItemList(textData) {
                             }
                         }
 
-                        // Render item ONGOING lên sân khấu
                         renderMainStage(item, secondsLeft);
                         hasRunningItem = true;
                     }
@@ -572,11 +481,9 @@ function processItemList(textData) {
         });
     }
 
-    // Cập nhật số lượng
     const countElem = document.getElementById("item-count");
     if (countElem) countElem.innerText = allItems.length;
 
-    // Nếu không còn cái nào đang chạy -> Xóa sân khấu
     if (!hasRunningItem) {
         clearStage();
     }
@@ -589,13 +496,12 @@ function renderQueueItem(item, container) {
     let statusHtml = "";
     let actionHtml = "";
 
-    // Trạng thái đang đấu
     if (item.status === 'ONGOING') {
         statusHtml = `<span class="q-status running">LIVE</span>`;
         actionHtml = `<span class="q-live-indicator"><i class="fa-solid fa-circle"></i></span>`;
         div.style.backgroundColor = "rgba(255, 65, 108, 0.1)";
     }
-    // Trạng thái chờ
+
     else if (item.status === 'WAIT') {
         statusHtml = `<span class="q-status waiting">CHỜ</span>`;
         actionHtml = `<div class="q-actions">
@@ -609,7 +515,7 @@ function renderQueueItem(item, container) {
         }
         actionHtml += `</div>`;
     }
-    // Trạng thái kết thúc
+
     else {
         statusHtml = `<span class="q-status finished">${item.status}</span>`;
         actionHtml = `<div class="q-actions">
@@ -627,17 +533,14 @@ function renderQueueItem(item, container) {
     container.appendChild(div);
 }
 
-// Trạng thái phòng: 1=OPEN, 0=CLOSED
 let roomStatus = 1;
 
-// Xử lý thông tin phòng từ server
 function processRoomInfo(textData) {
     const lines = textData.split("\n");
     lines.forEach(line => {
         line = line.trim();
         if (!line.startsWith("ROOM ")) return;
 
-        // Format: ROOM id name ownerId ownerName status
         const parts = line.split(" ");
         if (parts.length >= 5) {
             const id = parseInt(parts[1]);
@@ -646,17 +549,15 @@ function processRoomInfo(textData) {
             const ownerName = parts[4].replace(/_/g, ' ');
             const status = parts.length >= 6 ? parseInt(parts[5]) : 1;
 
-            // Chỉ cập nhật nếu đây là phòng hiện tại
             if (id === roomId) {
-                roomOwnerId = ownerId; // Lưu ID chủ phòng
-                roomStatus = status;   // Lưu trạng thái phòng
+                roomOwnerId = ownerId; 
+                roomStatus = status;   
 
                 const ownerElem = document.getElementById("room-owner-display");
                 if (ownerElem) {
                     ownerElem.innerText = ownerName + (status === 0 ? " (ĐÃ ĐÓNG)" : "");
                 }
 
-                // Nếu là chủ phòng, hiện nút Cài đặt
                 const actionsBtn = document.querySelector(".room-actions-btn");
                 if (actionsBtn && roomOwnerId === currentUser.id && !document.getElementById("btn-room-settings")) {
                     const btn = document.createElement("button");
@@ -669,17 +570,14 @@ function processRoomInfo(textData) {
                     actionsBtn.appendChild(btn);
                 }
 
-                // Re-render queue để cập nhật nút xóa cho chủ phòng
                 rerenderQueue();
             }
         }
     });
 }
 
-// Lưu danh sách thành viên phòng
 let roomMembers = [];
 
-// Xử lý danh sách thành viên phòng từ server
 function processRoomMembers(textData) {
     const list = document.getElementById("participant-list");
     if (!list) return;
@@ -710,7 +608,6 @@ function processRoomMembers(textData) {
     updateUserCount();
 }
 
-// Render danh sách thành viên
 function renderMembersList() {
     const list = document.getElementById("participant-list");
     if (!list) return;
@@ -737,9 +634,8 @@ function renderMembersList() {
     });
 }
 
-// Thêm thành viên mới (realtime)
 function addMemberToList(userId, username) {
-    // Kiểm tra trùng
+
     if (roomMembers.find(m => m.userId === userId)) return;
 
     roomMembers.push({ userId, username });
@@ -747,14 +643,12 @@ function addMemberToList(userId, username) {
     updateUserCount();
 }
 
-// Xóa thành viên (realtime)
 function removeMemberFromList(userId) {
     roomMembers = roomMembers.filter(m => m.userId !== userId);
     renderMembersList();
     updateUserCount();
 }
 
-// Cập nhật số người
 function updateUserCount() {
     const userCountElem = document.getElementById("user-count");
     if (userCountElem) {
@@ -762,7 +656,6 @@ function updateUserCount() {
     }
 }
 
-// Re-render hàng đợi từ allItems local (không cần gọi server)
 function rerenderQueue() {
     const queueContainer = document.getElementById("queue-list-container");
     if (!queueContainer) return;
@@ -773,19 +666,23 @@ function rerenderQueue() {
     });
 }
 
-// ============================================================
-// 4. HIỂN THỊ SÂN KHẤU CHÍNH (MAIN STAGE)
-// ============================================================
-
 function renderMainStage(item, secondsLeft) {
     currentStageItemId = item.id;
 
     const stage = document.getElementById("auction-stage");
     if (!stage) return;
 
-    // Lấy ảnh: ưu tiên localStorage, sau đó server, cuối cùng placeholder
     const itemNameKey = item.name.replace(/\s+/g, '_');
-    const imageUrl = getItemImage(itemNameKey) || item.imageUrl || 'https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg';
+    let imageUrl = getItemImage(itemNameKey) || item.imageUrl;
+
+    if (imageUrl && imageUrl.startsWith('uploads/')) {
+        const apiUrl = window.getApiUrl ? window.getApiUrl() : "http://localhost:3000";
+        imageUrl = `${apiUrl}/${imageUrl}`;
+    }
+
+    if (!imageUrl) {
+        imageUrl = 'https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg';
+    }
 
     stage.innerHTML = `
         <div class="product-image-area">
@@ -844,52 +741,44 @@ function renderMainStage(item, secondsLeft) {
         </div>
     `;
 
-    // Nếu có thời gian, chạy đồng hồ ngay
     if (secondsLeft !== null) {
         startCountdown(secondsLeft);
     }
 
-    // Load lịch sử đấu giá từ server
     loadBidHistory(item.id);
 }
 
 function updateLiveAuctionUI(newPrice, userId, secondsLeft) {
-    // 1. Cập nhật giá với animation
+
     const priceElem = document.getElementById("live-price");
     if (priceElem) {
         priceElem.innerText = newPrice.toLocaleString() + " VND";
-        // Hiệu ứng pulse
+
         priceElem.style.transform = "scale(1.1)";
         priceElem.style.transition = "transform 0.3s";
         setTimeout(() => priceElem.style.transform = "scale(1)", 300);
     }
 
-    // 2. Cập nhật placeholder
     const inp = document.getElementById("inp-bid-amount");
     if (inp) inp.placeholder = `Gợi ý: ${newPrice + 10000}`;
 
-    // 3. Cập nhật lịch sử đặt giá
     addBidToHistory(userId, newPrice);
 
-    // 4. Cập nhật danh sách người tham gia
     updateParticipantsList(userId, newPrice);
 
-    // 5. Reset đồng hồ
     startCountdown(secondsLeft);
 
-    // 6. Check logic ẩn nút Mua Ngay nếu giá đấu vượt giá mua ngay
     const item = allItems.find(i => i.id === currentStageItemId);
     if (item && item.buyNowPrice > 0) {
         if (newPrice >= item.buyNowPrice) {
             const buyNowBox = document.querySelector(".buy-now-box");
             if (buyNowBox) {
-                buyNowBox.style.display = 'none'; // hoặc buyNowBox.remove()
+                buyNowBox.style.display = 'none'; 
             }
         }
     }
 }
 
-// Quick bid - đặt giá nhanh với số tiền cố định
 function quickBid(itemId, amount) {
     const priceElem = document.getElementById("live-price");
     if (!priceElem) return;
@@ -909,14 +798,12 @@ function quickBid(itemId, amount) {
     showToast(`💰 Đặt giá ${newBid.toLocaleString()}đ`, 'info', 2000);
 }
 
-// Lịch sử đặt giá
 let bidHistory = [];
 
 function addBidToHistory(userId, price) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN');
 
-    // Nếu là mình thì lấy username từ currentUser
     const username = (userId == currentUser.id) ? currentUser.username : null;
 
     bidHistory.unshift({
@@ -926,12 +813,10 @@ function addBidToHistory(userId, price) {
         time: timeStr
     });
 
-    // Giữ tối đa 10 bids
     if (bidHistory.length > 10) bidHistory.pop();
 
     renderBidHistory();
 
-    // Load lại từ server sau 500ms để có username đầy đủ cho tất cả
     clearTimeout(window.bidHistoryReloadTimer);
     window.bidHistoryReloadTimer = setTimeout(() => {
         if (currentStageItemId > 0) {
@@ -962,7 +847,6 @@ function renderBidHistory() {
     `}).join('');
 }
 
-// Xử lý lịch sử đấu giá từ server
 function processBidHistory(textData) {
     console.log("📜 Processing bid history:", textData);
 
@@ -979,13 +863,12 @@ function processBidHistory(textData) {
         line = line.trim();
         if (!line.startsWith("BID_RECORD")) return;
 
-        // Format: BID_RECORD userId username amount time
         const parts = line.split(" ");
         if (parts.length >= 5) {
             const userId = parts[1];
             const username = parts[2];
             const amount = parseInt(parts[3]);
-            // Time có thể chứa khoảng trắng (YYYY-MM-DD HH:MM:SS)
+
             const time = parts.slice(4).join(" ");
 
             bidHistory.push({
@@ -999,25 +882,21 @@ function processBidHistory(textData) {
 
     renderBidHistory();
 
-    // Cập nhật danh sách người tham gia từ lịch sử bid
     updateParticipantsFromHistory();
 }
 
-// Gọi API lấy lịch sử đấu giá
 function loadBidHistory(itemId) {
     if (itemId <= 0) return;
     console.log("📜 Loading bid history for item:", itemId);
     sendPacket({ type: "LIST_BIDS", itemId: itemId });
 }
 
-// Cập nhật danh sách người tham gia từ lịch sử bid
 function updateParticipantsFromHistory() {
     const list = document.getElementById("participant-list");
     if (!list) return;
 
     list.innerHTML = "";
 
-    // Lấy danh sách unique users từ bidHistory
     const seenUsers = new Set();
     bidHistory.forEach((bid, index) => {
         if (seenUsers.has(bid.userId)) return;
@@ -1039,7 +918,6 @@ function updateParticipantsFromHistory() {
         list.insertAdjacentHTML('beforeend', html);
     });
 
-    // Cập nhật số người tham gia
     const userCountElem = document.getElementById("user-count");
     if (userCountElem) {
         userCountElem.innerText = seenUsers.size;
@@ -1050,7 +928,6 @@ function updateParticipantsFromHistory() {
     }
 }
 
-// Confetti animation khi thắng đấu giá
 function showConfetti() {
     const colors = ['#667eea', '#764ba2', '#f5576c', '#38ef7d', '#4facfe'];
     const container = document.body;
@@ -1078,7 +955,6 @@ function updateParticipantsList(userId, price) {
     const list = document.getElementById("participant-list");
     if (!list) return;
 
-    // Thêm người dẫn đầu lên đầu danh sách
     const html = `
         <div class="user-card highest">
             <img src="https://ui-avatars.com/api/?name=User${userId}&background=random">
@@ -1091,7 +967,6 @@ function updateParticipantsList(userId, price) {
     `;
     list.insertAdjacentHTML('afterbegin', html);
 
-    // Giới hạn 5 người
     while (list.children.length > 5) {
         list.removeChild(list.lastChild);
     }
@@ -1115,12 +990,8 @@ function clearStage() {
     if (list) list.innerHTML = "";
 }
 
-// ============================================================
-// 5. LOGIC ĐỒNG HỒ ĐẾM NGƯỢC
-// ============================================================
-
 function startCountdown(seconds) {
-    // Xóa timer cũ
+
     if (timerInterval) clearInterval(timerInterval);
 
     const timerElem = document.getElementById("timer-display");
@@ -1135,7 +1006,6 @@ function startCountdown(seconds) {
 
         timerElem.innerHTML = `<i class="fa-regular fa-clock"></i> ${min}:${sec}`;
 
-        // Cảnh báo màu đỏ nếu < 30s
         if (timeLeft <= 30) {
             timerElem.classList.add("warning");
         } else {
@@ -1143,7 +1013,7 @@ function startCountdown(seconds) {
         }
     };
 
-    updateDisplay(); // Chạy ngay lập tức
+    updateDisplay(); 
 
     timerInterval = setInterval(() => {
         timeLeft--;
@@ -1151,21 +1021,17 @@ function startCountdown(seconds) {
 
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
-            // Hết giờ thì chờ Server gửi AUCTION_FINISHED
+
         }
     }, 1000);
 }
 
-// ============================================================
-// 6. CÁC HÀNH ĐỘNG (ACTIONS)
-// ============================================================
-
 function startAuction(itemId) {
-    // Cho phép chủ phòng nhập thời gian đấu giá (tính bằng giây)
+
     const durationStr = prompt("Nhập thời gian đấu giá (giây):", "120");
 
     if (durationStr === null) {
-        // User cancelled
+
         return;
     }
 
@@ -1199,7 +1065,6 @@ function placeBid(itemId) {
         return;
     }
 
-    // Convert thành số và loại bỏ ký tự không phải số
     const amount = parseInt(amountStr.replace(/[^\d]/g, ''), 10);
 
     if (isNaN(amount) || amount <= 0) {
@@ -1207,12 +1072,10 @@ function placeBid(itemId) {
         return;
     }
 
-    // Gửi amount dưới dạng số
     sendPacket({ type: "BID", itemId: itemId, amount: amount });
-    inp.value = ""; // Xóa input
+    inp.value = ""; 
 }
 
-// Mua ngay với giá buy_now_price
 function buyNow(itemId, buyNowPrice) {
     const item = allItems.find(i => i.id === itemId);
     const itemName = item ? item.name : `Item #${itemId}`;
@@ -1235,7 +1098,6 @@ function backToLobby() {
     }
 }
 
-// --- MODAL ---
 function openCreateItemModal() {
     const modal = document.getElementById("modal-create-item");
     if (modal) modal.style.display = "flex";
@@ -1243,16 +1105,13 @@ function openCreateItemModal() {
 function closeModalItem() {
     const modal = document.getElementById("modal-create-item");
     if (modal) modal.style.display = "none";
-    // Reset preview
+
     document.getElementById("image-preview").style.display = "none";
     document.getElementById("preview-img").src = "";
 }
 
-// Biến lưu base64 của ảnh đã chọn
 let selectedImageBase64 = "";
 
-// Preview ảnh khi chọn file
-// Preview ảnh khi chọn file -> Rename to match room.html check
 function handleFileUpload(input) {
     const preview = document.getElementById("image-preview");
     const previewImg = document.getElementById("preview-img");
@@ -1260,30 +1119,29 @@ function handleFileUpload(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
 
-        // Giới hạn kích thước 2MB
-        if (file.size > 2 * 1024 * 1024) {
-            showToast("❌ Ảnh quá lớn! Tối đa 2MB", "error");
+        if (file.size > 5 * 1024 * 1024) {
+            showToast("❌ Ảnh quá lớn! Tối đa 5MB", "error");
             input.value = "";
             return;
         }
 
         const reader = new FileReader();
         reader.onload = function (e) {
-            selectedImageBase64 = e.target.result; // Data URL (base64)
-            previewImg.src = selectedImageBase64;
+
+            previewImg.src = e.target.result;
             preview.style.display = "block";
         };
         reader.readAsDataURL(file);
     } else {
         preview.style.display = "none";
-        selectedImageBase64 = "";
     }
 }
 
-function confirmCreateItem() {
+async function confirmCreateItem() {
     const name = document.getElementById("inp-item-name").value.trim();
     const price = document.getElementById("inp-item-price").value;
     const buyNowPrice = document.getElementById("inp-item-buynow").value || 0;
+    const fileInput = document.getElementById("inp-item-image");
 
     if (!name) {
         showToast("⚠️ Vui lòng nhập tên sản phẩm!", "warning");
@@ -1294,69 +1152,76 @@ function confirmCreateItem() {
         return;
     }
 
-    // Lưu ảnh base64 vào localStorage (vì server chưa hỗ trợ lưu file lớn)
     const itemKey = name.replace(/\s+/g, '_');
-    if (selectedImageBase64) {
-        const itemImages = JSON.parse(localStorage.getItem("itemImages") || "{}");
-        itemImages[itemKey] = selectedImageBase64;
-        localStorage.setItem("itemImages", JSON.stringify(itemImages));
-    }
+    let imageUrl = "";
 
-    // Gửi lên server (server đã hỗ trợ buffer lớn 8MB để lưu ảnh base64)
-    console.log("📤 CREATE_ITEM: Preparing to send...");
-    console.log("   - Name:", itemKey);
-    console.log("   - Price:", price);
-    console.log("   - Image Length:", selectedImageBase64 ? selectedImageBase64.length : 0);
-    if (!selectedImageBase64) console.warn("⚠️ Warning: No image selected!");
+    if (fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("image", file);
 
-    // Visual feedback
-    if (selectedImageBase64) {
         showToast("⏳ Đang tải ảnh lên...", "info");
-    } else {
-        showToast("⏳ Đang gửi yêu cầu...", "info");
+
+        try {
+
+            const apiUrl = window.getApiUrl ? window.getApiUrl() : "http://localhost:3000";
+            const response = await fetch(`${apiUrl}/upload`, {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error("Upload failed");
+            }
+
+            const data = await response.json();
+            imageUrl = data.url; 
+            console.log("✅ Upload success:", imageUrl);
+
+        } catch (err) {
+            console.error("Upload error:", err);
+            showToast("❌ Lỗi tải ảnh: " + err.message, "error");
+            return; 
+        }
     }
+
+    console.log("📤 CREATE_ITEM: Sending...", { name: itemKey, price, imageUrl });
+    showToast("⏳ Đang tạo phiên đấu giá...", "info");
 
     sendPacket({
         type: "CREATE_ITEM",
         name: itemKey,
         startPrice: parseInt(price),
         buyNowPrice: parseInt(buyNowPrice) || 0,
-        imageUrl: selectedImageBase64 || ''
+        imageUrl: imageUrl
     });
 
-    // Clear form
     document.getElementById("inp-item-name").value = '';
     document.getElementById("inp-item-image").value = '';
     document.getElementById("inp-item-price").value = '';
     document.getElementById("inp-item-buynow").value = '';
     document.getElementById("image-preview").style.display = "none";
-    selectedImageBase64 = "";
 
-    // Close immediately, feedback comes via toast or OK response
     closeModalItem();
 }
 
-// Lấy ảnh từ localStorage
 function getItemImage(itemName) {
     const itemImages = JSON.parse(localStorage.getItem("itemImages") || "{}");
-    return itemImages[itemName] || 'https://thumbs.dreamstime.com/b/no-image-available-icon-flat-vector-no-image-available-icon-flat-vector-illustration-132482953.jpg';
+    return itemImages[itemName] || null;
 }
 
-// Xóa vật phẩm
 function deleteItem(itemId) {
     if (confirm("Bạn có chắc muốn xóa vật phẩm này?")) {
         sendPacket({ type: "DELETE_ITEM", itemId: itemId });
     }
 }
 
-// Hiển thị thông tin vật phẩm
 function showItemInfo(itemId, itemName, price, status) {
     const statusText = status === 'SOLD' ? 'Đã bán' : 'Hết hạn';
     const priceText = price.toLocaleString() + ' đ';
     showToast(`Tên: ${itemName}<br>Giá: ${priceText}<br>Trạng thái: ${statusText}`, 'info', 4000);
 }
 
-// Hiển thị modal tất cả phiên đấu giá
 function showAllAuctions() {
     const modal = document.getElementById("modal-all-auctions");
     const list = document.getElementById("all-auctions-list");
@@ -1392,10 +1257,15 @@ function showAllAuctions() {
                     statusText = item.status;
             }
 
-            // Use placeholder if no image
-            const imgUrl = item.imageUrl && item.imageUrl.length > 5
-                ? item.imageUrl
-                : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=667eea&color=fff&size=60`;
+            let imgUrl = item.imageUrl;
+            if (imgUrl && imgUrl.startsWith('uploads/')) {
+                const apiUrl = window.getApiUrl ? window.getApiUrl() : "http://localhost:3000";
+                imgUrl = `${apiUrl}/${imgUrl}`;
+            }
+
+            if (!imgUrl || imgUrl.length <= 5) {
+                imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=667eea&color=fff&size=60`;
+            }
 
             const html = `
                 <div class="auction-detail-item" style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:10px;">
@@ -1420,7 +1290,6 @@ function showAllAuctions() {
     modal.style.display = "flex";
 }
 
-// Đóng modal tất cả phiên đấu giá
 function closeAllAuctionsModal() {
     const modal = document.getElementById("modal-all-auctions");
     if (modal) modal.style.display = "none";

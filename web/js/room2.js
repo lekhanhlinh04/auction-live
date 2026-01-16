@@ -1,6 +1,4 @@
-// ============================================================
-// 1. AUTH + ROOM INIT
-// ============================================================
+
 
 const userJson = localStorage.getItem("user");
 if (!userJson) window.location.href = "index.html";
@@ -13,10 +11,6 @@ if (!roomId) {
     window.location.href = "home.html";
 }
 
-// ============================================================
-// 2. SOCKET TEXT COMMAND (QUAN TRỌNG)
-// ============================================================
-
 function sendCommand(cmd) {
     if (window.socket && socket.readyState === WebSocket.OPEN) {
         console.log("[SEND]", cmd);
@@ -24,48 +18,30 @@ function sendCommand(cmd) {
     }
 }
 
-// ============================================================
-// 3. UI INIT
-// ============================================================
-
 document.getElementById("user-name").innerText = currentUser.username;
 document.getElementById("user-avatar").src =
     `https://ui-avatars.com/api/?name=${currentUser.username}&background=random`;
 document.getElementById("room-id-display").innerText =
     "R" + roomId.padStart(3, "0");
 
-// ============================================================
-// 4. GLOBAL STATE
-// ============================================================
-
 let allItems = [];
 let currentStageItemId = 0;
 let timerInterval = null;
-
-// ============================================================
-// 5. JOIN ROOM + LOAD ITEMS
-// ============================================================
 
 setTimeout(() => {
     sendCommand(`JOIN_ROOM ${roomId}`);
     sendCommand(`LIST_ITEMS ${roomId}`);
 }, 500);
 
-// ============================================================
-// 6. HANDLE SERVER MESSAGE
-// ============================================================
-
 window.onServerMessage = function (msg) {
     console.log("[RECV]", msg);
 
-    // ---------- ITEM LIST ----------
     if (msg.startsWith("ITEM") || msg.startsWith("NO_ITEMS")) {
         processItemList(msg);
     }
 
-    // ---------- AUCTION START ----------
     else if (msg.startsWith("AUCTION_STARTED")) {
-        // AUCTION_STARTED itemId startPrice buyNow seconds
+
         const p = msg.split(" ");
         const itemId = +p[1];
         const startPrice = +p[2];
@@ -80,9 +56,8 @@ window.onServerMessage = function (msg) {
         }
     }
 
-    // ---------- NEW BID ----------
     else if (msg.startsWith("NEW_BID")) {
-        // NEW_BID itemId userId price seconds
+
         const p = msg.split(" ");
         const itemId = +p[1];
         const userId = p[2];
@@ -94,7 +69,6 @@ window.onServerMessage = function (msg) {
         }
     }
 
-    // ---------- TIME LEFT ----------
     else if (msg.startsWith("TIME_LEFT")) {
         const p = msg.split(" ");
         if (+p[1] === currentStageItemId) {
@@ -102,7 +76,6 @@ window.onServerMessage = function (msg) {
         }
     }
 
-    // ---------- FINISH ----------
     else if (
         msg.startsWith("AUCTION_FINISHED") ||
         msg.startsWith("ITEM_SOLD")
@@ -117,7 +90,6 @@ window.onServerMessage = function (msg) {
         clearStage();
     }
 
-    // ---------- OK ----------
     else if (msg.startsWith("OK CREATE_ITEM")) {
         alert("Đăng bán thành công!");
         closeModalItem();
@@ -128,10 +100,6 @@ window.onServerMessage = function (msg) {
         alert(msg);
     }
 };
-
-// ============================================================
-// 7. ITEM LIST + QUEUE
-// ============================================================
 
 function processItemList(text) {
     const box = document.getElementById("queue-list-container");
@@ -148,7 +116,6 @@ function processItemList(text) {
         if (!line.startsWith("ITEM")) return;
         const p = line.split(" ");
 
-        // ITEM id room seller name price buy status ...
         const item = {
             id: +p[1],
             sellerId: p[3],
@@ -193,10 +160,6 @@ function renderQueueItem(item, box) {
     box.appendChild(div);
 }
 
-// ============================================================
-// 8. MAIN STAGE
-// ============================================================
-
 function renderMainStage(item, secondsLeft) {
     currentStageItemId = item.id;
 
@@ -226,10 +189,6 @@ function clearStage() {
         "<i>Chưa có phiên đấu giá</i>";
 }
 
-// ============================================================
-// 9. COUNTDOWN
-// ============================================================
-
 function startCountdown(sec) {
     if (timerInterval) clearInterval(timerInterval);
     let t = sec;
@@ -242,10 +201,6 @@ function startCountdown(sec) {
         if (--t < 0) clearInterval(timerInterval);
     }, 1000);
 }
-
-// ============================================================
-// 10. ACTIONS
-// ============================================================
 
 function startAuction(itemId) {
     if (confirm("Bắt đầu đấu giá 2 phút?")) {
@@ -263,10 +218,6 @@ function backToLobby() {
     sendCommand("LEAVE_ROOM");
     window.location.href = "home.html";
 }
-
-// ============================================================
-// 11. MODAL
-// ============================================================
 
 function confirmCreateItem() {
     const name = document.getElementById("inp-item-name").value.trim();

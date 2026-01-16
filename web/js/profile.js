@@ -1,14 +1,11 @@
-// ============================================================
-// PROFILE & PASSWORD FUNCTIONS
-// ============================================================
+
 
 function openProfileModal() {
     const modal = document.getElementById("modal-profile");
     if (!modal) return;
 
-    // Set user info
     if (currentUser) {
-        // Kiểm tra element tồn tại trước khi set
+
         const elUsername = document.getElementById("profile-username");
         const elId = document.getElementById("profile-id");
         const elAvatar = document.getElementById("profile-avatar-img");
@@ -17,7 +14,6 @@ function openProfileModal() {
         if (elId) elId.innerText = "#" + currentUser.id;
         if (elAvatar) elAvatar.src = `https://ui-avatars.com/api/?name=${currentUser.username}&background=random&size=128`;
 
-        // Cập nhật stats mini
         const joined = document.getElementById("stat-joined")?.innerText || "0";
         const won = document.getElementById("stat-won")?.innerText || "0";
 
@@ -36,7 +32,6 @@ function closeProfileModal() {
     const modal = document.getElementById("modal-profile");
     if (modal) modal.style.display = "none";
 
-    // Clear inputs
     const elOld = document.getElementById("old-pass");
     const elNew = document.getElementById("new-pass");
     const elConfirm = document.getElementById("confirm-pass");
@@ -50,11 +45,9 @@ function switchProfileTab(tabName) {
     const tabs = document.querySelectorAll(".p-tab");
     const contents = document.querySelectorAll(".p-tab-content");
 
-    // Deactivate all
     tabs.forEach(t => t.classList.remove("active"));
     contents.forEach(c => c.style.display = "none");
 
-    // Activate target
     if (tabName === 'info') {
         if (tabs[0]) tabs[0].classList.add("active");
         const tabInfo = document.getElementById("p-tab-info");

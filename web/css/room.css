@@ -1,9 +1,5 @@
-/* ============================================
-   AuctionZone - Premium Room Styles
-   Modern, Animated, Glassmorphism Design
-   ============================================ */
 
-/* Base & Reset */
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -17,7 +13,6 @@ body {
     color: #fff;
 }
 
-/* Top Navigation Bar */
 .room-topbar {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
@@ -118,7 +113,6 @@ body {
     border: 2px solid #667eea;
 }
 
-/* Main Grid Layout - 3 Columns */
 .room-container {
     max-width: 1700px;
     margin: 25px auto;
@@ -128,7 +122,6 @@ body {
     gap: 25px;
 }
 
-/* Left Panel - Chat */
 .left-panel {
     display: flex;
     flex-direction: column;
@@ -152,7 +145,6 @@ body {
     gap: 25px;
 }
 
-/* Auction Card - Glassmorphism */
 .auction-card {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(20px);
@@ -166,7 +158,7 @@ body {
     position: relative;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    /* Fix flickering */
+    
     transform: translateZ(0);
     will-change: transform;
 }
@@ -244,7 +236,6 @@ body {
     font-size: 0.9rem;
 }
 
-/* Premium Timer */
 .timer-box {
     display: flex;
     align-items: center;
@@ -276,7 +267,6 @@ body {
     }
 }
 
-/* Price Display */
 .price-box {
     margin-bottom: 25px;
     text-align: center;
@@ -314,7 +304,6 @@ body {
     }
 }
 
-/* Bid Control */
 .bid-control {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -375,7 +364,6 @@ body {
     transform: translateY(0);
 }
 
-/* Sidebar */
 .sidebar {
     display: flex;
     flex-direction: column;
@@ -390,7 +378,7 @@ body {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    /* Fix flickering */
+    
     transform: translateZ(0);
     will-change: transform;
 }
@@ -456,7 +444,6 @@ body {
     box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
 }
 
-/* Queue List */
 .queue-header {
     display: flex;
     justify-content: space-between;
@@ -478,14 +465,14 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
-    /* Firefox */
+    
     -ms-overflow-style: none;
-    /* IE/Edge */
+    
 }
 
 .queue-list::-webkit-scrollbar {
     display: none;
-    /* Chrome/Safari/Opera */
+    
 }
 
 .queue-item {
@@ -568,7 +555,6 @@ body {
     box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* Queue Action Buttons - Icon Only */
 .q-actions {
     display: flex;
     gap: 6px;
@@ -640,7 +626,6 @@ body {
     }
 }
 
-/* Empty Stage */
 .empty-stage {
     width: 100%;
     display: flex;
@@ -662,12 +647,11 @@ body {
     font-size: 1.1rem;
 }
 
-/* Modal Enhancements */
 .modal-overlay {
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    /* Fix flickering */
+    
     transform: translateZ(0);
     will-change: transform, opacity;
 }
@@ -677,7 +661,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #fff;
     border-radius: 20px;
-    /* Fix flickering */
+    
     transform: translateZ(0);
     will-change: transform;
 }
@@ -708,7 +692,6 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Toast Notifications */
 .toast-container {
     position: fixed;
     top: 80px;
@@ -793,7 +776,6 @@ body {
     color: #f5576c;
 }
 
-/* Responsive */
 @media (max-width: 1400px) {
     .room-container {
         grid-template-columns: 280px 1fr 300px;
@@ -824,7 +806,6 @@ body {
     }
 }
 
-/* Quick Bid Buttons */
 .quick-bid-buttons {
     display: flex;
     gap: 8px;
@@ -856,7 +837,6 @@ body {
     transform: translateY(0);
 }
 
-/* Bid History Panel */
 .bid-history-panel {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
@@ -924,7 +904,6 @@ body {
     padding: 20px;
 }
 
-/* Confetti Animation */
 @keyframes confettiFall {
     0% {
         transform: translateY(0) rotate(0deg);
@@ -937,7 +916,6 @@ body {
     }
 }
 
-/* Price pulse animation */
 @keyframes pricePulse {
     0% {
         transform: scale(1);
@@ -956,7 +934,6 @@ body {
     animation: pricePulse 0.3s ease;
 }
 
-/* Enhanced bid control on dark theme */
 .bid-control {
     background: rgba(255, 255, 255, 0.95);
     padding: 20px;
@@ -972,9 +949,6 @@ body {
     font-size: 0.95rem;
 }
 
-/* ============================================
-   CHAT BOX STYLES
-   ============================================ */
 .chat-card {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(20px);
@@ -982,7 +956,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.15);
     padding: 0;
     overflow: hidden;
-    /* Fix flickering */
+    
     transform: translateZ(0);
     will-change: transform;
 }
@@ -1171,12 +1145,10 @@ body {
     box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
 }
 
-
 .chat-send-btn:active {
     transform: scale(0.95);
 }
 
-/* Delete Button */
 .btn-delete {
     background: #ff416c;
     color: white;

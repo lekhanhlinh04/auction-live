@@ -6,12 +6,11 @@
 #include "db.h"
 #include "item.h"
 
-// escape string để ghép vào SQL an toàn hơn
 static void escape_string(MYSQL *conn, const char *src,
                           char *dst, size_t dstSize) {
     unsigned long len = (unsigned long)strlen(src);
     if (dstSize < 2 * len + 1) {
-        // nếu buffer không đủ, thôi cứ copy thô (ít nhất không crash)
+
         strncpy(dst, src, dstSize - 1);
         dst[dstSize - 1] = '\0';
         return;
@@ -46,11 +45,10 @@ int item_create(int seller_id, int room_id, const char *name,
         return 0;
     }
 
-    char query[1024];
+    char query[2048];
     MYSQL_RES *res;
     MYSQL_ROW row;
 
-    // 1) kiểm tra room tồn tại & đang OPEN
     snprintf(query, sizeof(query),
              "SELECT status FROM rooms WHERE id = %d", room_id);
     if (mysql_query(conn, query) != 0) {
@@ -71,13 +69,12 @@ int item_create(int seller_id, int room_id, const char *name,
     {
         int room_status = atoi(row[0]);
         mysql_free_result(res);
-        if (room_status != 1) { // 1 = OPEN
+        if (room_status != 1) { 
             snprintf(errMsg, errSize, "Room is not open");
             return 0;
         }
     }
 
-    // 2) tính queue_order = max(queue_order)+1 trong phòng
     int next_order = 1;
     snprintf(query, sizeof(query),
              "SELECT COALESCE(MAX(queue_order), 0) + 1 "
@@ -99,41 +96,19 @@ int item_create(int seller_id, int room_id, const char *name,
     }
     mysql_free_result(res);
 
-    // 3) insert item: status='WAIT', auction_start/end NULL
-    char nameEsc[256];
+    char nameEsc[512];
+    char imgEsc[512];
+    
     escape_string(conn, name, nameEsc, sizeof(nameEsc));
-    
-    // Fix: Allocate heap for image escaping (Base64 can be 6.6MB for 5MB file)
-    // mysql_real_escape_string needs 2*len+1
-    size_t imgLen = (image_url ? strlen(image_url) : 0);
-    char *imgEsc = NULL;
-    if (imgLen > 0) {
-        imgEsc = (char*)malloc(2 * imgLen + 1);
-        if (imgEsc) {
-            mysql_real_escape_string(conn, imgEsc, image_url, imgLen);
-        } else {
-             snprintf(errMsg, errSize, "Server OOM for image");
-             return 0;
-        }
-    } else {
-        // dummy empty
-        imgEsc = (char*)malloc(1);
-        if(imgEsc) imgEsc[0] = '\0';
-    }
 
-    // Tính toán kích thước buffer cần thiết cho query
-    // Base instruction ~500 chars + nameEsc + imgEsc + safety
-    size_t queryLen = 1024 + strlen(nameEsc) + (imgEsc ? strlen(imgEsc) : 0);
-    char *queryDynamic = (char*)malloc(queryLen);
-    
-    if (!queryDynamic) {
-        if(imgEsc) free(imgEsc);
-        snprintf(errMsg, errSize, "Server OOM for query");
-        return 0;
+    if (image_url && image_url[0]) {
+        escape_string(conn, image_url, imgEsc, sizeof(imgEsc));
+    } else {
+        imgEsc[0] = '\0';
     }
 
     if (buy_now_price > 0) {
-        snprintf(queryDynamic, queryLen,
+        snprintf(query, sizeof(query),
                  "INSERT INTO items("
                  "room_id, seller_id, name, description, "
                  "start_price, buy_now_price, "
@@ -148,7 +123,7 @@ int item_create(int seller_id, int room_id, const char *name,
                  start_price, buy_now_price,
                  next_order);
     } else {
-        snprintf(queryDynamic, queryLen,
+        snprintf(query, sizeof(query),
                  "INSERT INTO items("
                  "room_id, seller_id, name, description, "
                  "start_price, buy_now_price, "
@@ -164,13 +139,10 @@ int item_create(int seller_id, int room_id, const char *name,
                  next_order);
     }
 
-    if (imgEsc) free(imgEsc);
-
-    // DEBUG QUERY
-    printf("DEBUG SQL (len=%zu): %s\n", strlen(queryDynamic), queryDynamic);
+    printf("DEBUG SQL (len=%zu): %s\n", strlen(query), query);
 
     int ret = 0;
-    if (mysql_query(conn, queryDynamic) != 0) {
+    if (mysql_query(conn, query) != 0) {
         snprintf(errMsg, errSize, "DB error: %s", mysql_error(conn));
         ret = 0;
     } else {
@@ -179,7 +151,6 @@ int item_create(int seller_id, int room_id, const char *name,
         ret = 1;
     }
     
-    free(queryDynamic);
     return ret;
 }
 
@@ -198,14 +169,14 @@ int item_list_by_room(int room_id,
 
     char query[1024];
 
-    // JOIN với users để lấy username của seller
     if (room_id > 0) {
         snprintf(query, sizeof(query),
                  "SELECT i.id, i.room_id, i.seller_id, i.name, "
                  "       i.start_price, COALESCE(i.buy_now_price, 0), "
                  "       i.status, i.queue_order, "
                  "       i.auction_start, i.auction_end, i.description, "
-                 "       COALESCE(u.username, 'Unknown') "
+                 "       COALESCE(u.username, 'Unknown'), "
+                 "       COALESCE(i.final_price, 0) "
                  "FROM items i "
                  "LEFT JOIN users u ON i.seller_id = u.id "
                  "WHERE i.room_id = %d "
@@ -217,7 +188,8 @@ int item_list_by_room(int room_id,
                  "       i.start_price, COALESCE(i.buy_now_price, 0), "
                  "       i.status, i.queue_order, "
                  "       i.auction_start, i.auction_end, i.description, "
-                 "       COALESCE(u.username, 'Unknown') "
+                 "       COALESCE(u.username, 'Unknown'), "
+                 "       COALESCE(i.final_price, 0) "
                  "FROM items i "
                  "LEFT JOIN users u ON i.seller_id = u.id "
                  "ORDER BY i.room_id ASC, i.queue_order ASC, i.id ASC");
@@ -244,23 +216,27 @@ int item_list_by_room(int room_id,
         int seller_id    = atoi(row[2]);
         const char *name = row[3] ? row[3] : "";
         long long start_price = atoll(row[4]);
-        long long buy_now     = atoll(row[5]);   // 0 nếu NULL
+        long long buy_now     = atoll(row[5]);   
         const char *status    = row[6] ? row[6] : "WAIT";
         int queue_order       = atoi(row[7]);
         const char *auction_start = row[8] ? row[8] : "NULL";
         const char *auction_end   = row[9] ? row[9] : "NULL";
         const char *image_url     = row[10] ? row[10] : "";
         const char *seller_name   = row[11] ? row[11] : "Unknown";
+        long long final_price = atoll(row[12]);
 
-        // Format: ITEM id room sellerId sellerName name price buynow status queue start end imageUrl
-        // Allocate large line buffer
-        char *line = (char*)malloc(7 * 1024 * 1024); // 7MB
-        if (!line) break; // OOM
+        long long display_price = start_price;
+        if ((strcmp(status, "SOLD") == 0 || strcmp(status, "EXPIRED") == 0) && final_price > 0) {
+            display_price = final_price;
+        }
+
+        char *line = (char*)malloc(7 * 1024 * 1024); 
+        if (!line) break; 
         
         snprintf(line, 7 * 1024 * 1024,
                  "ITEM %d %d %d %s %s %lld %lld %s %d %s %s %s\n",
                  id, r_id, seller_id, seller_name, name,
-                 start_price, buy_now, status, queue_order,
+                 display_price, buy_now, status, queue_order,
                  auction_start, auction_end, 
                  (image_url[0] ? image_url : "NOIMG"));
 
@@ -330,13 +306,11 @@ int item_delete(int user_id, int item_id,
     int owner_id  = atoi(row[2]);
     mysql_free_result(res);
 
-    // chỉ seller hoặc chủ phòng mới được xoá
     if (user_id != seller_id && user_id != owner_id) {
         snprintf(errMsg, errSize, "Not allowed to delete this item");
         return 0;
     }
 
-    // chỉ cho xoá khi chưa đấu giá
     if (strcmp(status, "WAIT") != 0) {
         snprintf(errMsg, errSize, "Item already started or finished");
         return 0;
@@ -527,6 +501,3 @@ int item_search_time(const char *from_time, const char *to_time,
 
     return 1;
 }
-
-
-

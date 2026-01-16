@@ -5,8 +5,7 @@ echo ========================================
 echo.
 
 echo Compiling...
-gcc -o server.exe src/server.c src/db.c src/user.c src/room.c src/item.c src/auction.c -I./include -L./lib -lmysql -lws2_32 -Wall
-
+gcc -o server.exe src/server.c src/db.c src/user.c src/room.c src/item.c src/auction.c -I./include libmysql.dll -lws2_32 -Wno-format-truncation
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ========================================
@@ -20,7 +19,7 @@ if %ERRORLEVEL% EQU 0 (
     echo ========================================
     echo Please check:
     echo - GCC is installed and in PATH
-    echo - MySQL connector files in include/ and lib/
+    echo - MySQL connector files (libmysql.dll) are present
 )
 
 echo.

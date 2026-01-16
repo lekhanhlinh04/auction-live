@@ -1,4 +1,4 @@
-/* Reset CSS */
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -7,41 +7,39 @@
 }
 
 body {
-  /* Làm nền gradient cho đẹp và full màn hình */
+  
   background: linear-gradient(135deg, #ffffff, #2672f7);
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh; /* Đảm bảo luôn full chiều cao màn hình */
+  min-height: 100vh; 
 }
 
-/* Khung chính */
 .container {
   display: flex;
   width: 900px;
   height: 550px;
   background: #fff;
-  border-radius: 12px; /* Bo tròn khung */
-  box-shadow: 0 15px 35px rgba(0,0,0,0.4); /* Đổ bóng sâu tạo chiều sâu */
-  overflow: hidden; /* Cắt những phần thừa ra ngoài bo tròn */
+  border-radius: 12px; 
+  box-shadow: 0 15px 35px rgba(0,0,0,0.4); 
+  overflow: hidden; 
 }
 
-/* --- PHẦN BÊN TRÁI (MÀU XANH) --- */
 .left-panel {
-  flex: 1; /* Chiếm 50% */
+  flex: 1; 
   background: #0044cc;
-  background: linear-gradient(to bottom, #005bea, #0044cc); /* Gradient xanh */
+  background: linear-gradient(to bottom, #005bea, #0044cc); 
   color: white;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: relative; /* QUAN TRỌNG: Để giữ h1 nằm trong khung này */
+  position: relative; 
   padding: 20px;
 }
 
 .left-panel h1 {
-  position: absolute; /* Cố định vị trí tương đối với left-panel */
+  position: absolute; 
   top: 50px;
   font-size: 3rem;
   font-weight: 800;
@@ -49,22 +47,21 @@ body {
 }
 
 .illustration {
-  margin-top: 80px; /* Đẩy ảnh xuống dưới chữ AuctionZone */
+  margin-top: 80px; 
   width: 100%;
   display: flex;
   justify-content: center;
 }
 
 .illustration img {
-  max-width: 85%; /* Ảnh không bao giờ to quá khung */
+  max-width: 85%; 
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 10px 10px rgba(0,0,0,0.3)); /* Bóng cho ảnh nhân vật */
+  filter: drop-shadow(0 10px 10px rgba(0,0,0,0.3)); 
 }
 
-/* --- PHẦN BÊN PHẢI (FORM) --- */
 .right-panel {
-  flex: 1; /* Chiếm 50% */
+  flex: 1; 
   padding: 40px 60px;
   display: flex;
   flex-direction: column;
@@ -85,7 +82,6 @@ body {
   font-weight: 600;
 }
 
-/* Inputs */
 .input-group {
   width: 100%;
   border: 1px solid #ddd;
@@ -94,12 +90,12 @@ body {
   align-items: center;
   padding: 12px 15px;
   margin-bottom: 15px;
-  border-radius: 6px; /* Bo nhẹ ô input */
+  border-radius: 6px; 
   transition: border 0.3s;
 }
 
 .input-group:focus-within {
-  border-color: #0044cc; /* Đổi màu viền khi gõ */
+  border-color: #0044cc; 
   background-color: #fff;
 }
 
@@ -118,7 +114,6 @@ body {
   color: #333;
 }
 
-/* Buttons */
 .btn {
   width: 100%;
   padding: 14px;
@@ -147,7 +142,6 @@ body {
   background: #4dd0e1; 
 }
 
-/* Separator */
 .separator {
   display: flex;
   align-items: center;
@@ -168,10 +162,9 @@ body {
   padding: 0 10px;
 }
 
-/* Error */
 .error {
   color: #e74c3c;
   font-size: 0.9rem;
   margin-bottom: 10px;
-  min-height: 20px; /* Giữ chỗ để layout không bị nhảy khi có lỗi */
+  min-height: 20px; 
 }

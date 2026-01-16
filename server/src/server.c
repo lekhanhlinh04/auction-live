@@ -16,7 +16,6 @@
 #define PORT 8081
 #define MAX_CLIENTS  FD_SETSIZE
 
-// bỏ \r\n ở cuối chuỗi
 void trim_newline(char *s) {
     size_t len = strlen(s);
     while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r')) {
@@ -24,7 +23,6 @@ void trim_newline(char *s) {
     }
 }
 
-// Gửi msg cho tất cả client đang ở room_id
 void broadcast_to_room(int room_id,
                        const char *msg,
                        size_t len,
@@ -43,20 +41,18 @@ int main(void) {
     WSADATA wsa;
     SOCKET listenSock, clientSock;
     SOCKET clientSockets[MAX_CLIENTS];
-    int    clientUserIds[MAX_CLIENTS];   // 0 = chưa login
-    int    clientRoomIds[MAX_CLIENTS];   // 0 = chưa ở phòng nào
-    
-    // START DYNAMIC BUFFERING
+    int    clientUserIds[MAX_CLIENTS];   
+    int    clientRoomIds[MAX_CLIENTS];   
+
     char  *clientBuffers[MAX_CLIENTS];
     int    clientBufLen[MAX_CLIENTS];
     int    clientBufCap[MAX_CLIENTS];
-    // END DYNAMIC BUFFERING
+
     struct sockaddr_in serverAddr, clientAddr;
     int addrlen = sizeof(clientAddr);
     fd_set readfds;
     int i;
 
-    // Khởi tạo mảng client
     for (i = 0; i < MAX_CLIENTS; i++) {
         clientSockets[i] = INVALID_SOCKET;
         clientUserIds[i] = 0;
@@ -67,7 +63,6 @@ int main(void) {
         clientBufCap[i] = 0;
     }
 
-    // Khởi tạo Winsock
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         printf("WSAStartup failed: %d\n", WSAGetLastError());
         printf("Nhấn phím bất kỳ để thoát...\n");
@@ -75,7 +70,6 @@ int main(void) {
         return 1;
     }
 
-    // Kết nối MySQL
     if (!db_init()) {
         printf("Không kết nối được MySQL, thoát.\n");
         printf("Nhấn phím bất kỳ để thoát...\n");
@@ -84,23 +78,18 @@ int main(void) {
         return 1;
     }
 
-    // --- DB SCHEMA MIGRATION ---
-    // Đảm bảo image_url đủ dài để chứa Base64 (MEDIUMTEXT ~16MB)
     {
         MYSQL *conn = db_get_conn();
         if (conn) {
             const char *alter_query = "ALTER TABLE items MODIFY description MEDIUMTEXT";
             if (mysql_query(conn, alter_query) != 0) {
-                // Có thể lỗi nếu column khác tên hoặc đã tồn tại, nhưng cứ thử
-                // printf("Migration warning: %s\n", mysql_error(conn));
+
             } else {
                 printf("✅ Database schema updated: items.description -> MEDIUMTEXT\n");
             }
         }
     }
-    // ----------------------------
 
-    // Tạo socket lắng nghe
     listenSock = socket(AF_INET, SOCK_STREAM, 0);
     if (listenSock == INVALID_SOCKET) {
         printf("socket() failed: %d\n", WSAGetLastError());
@@ -145,7 +134,6 @@ int main(void) {
         FD_SET(listenSock, &readfds);
         SOCKET maxfd = listenSock;
 
-        // add tất cả client socket vào readfds
         for (i = 0; i < MAX_CLIENTS; i++) {
             SOCKET s = clientSockets[i];
             if (s != INVALID_SOCKET) {
@@ -155,7 +143,7 @@ int main(void) {
         }
 
         struct timeval tv;
-tv.tv_sec = 1;   // mỗi 1 giây tick
+tv.tv_sec = 1;   
 tv.tv_usec = 0;
 
 int activity = select((int)maxfd + 1, &readfds, NULL, NULL, &tv);
@@ -164,13 +152,10 @@ int activity = select((int)maxfd + 1, &readfds, NULL, NULL, &tv);
             break;
         }
 
-        //
         {
             int finished_items[64];
             int finished_count = 0;
 
-            // Lấy danh sách item đang ONGOING và đã hết hạn
-            // (hàm này bạn đã có hoặc đã xử lý trong auction.c)
             finished_count = auction_get_finished_items(
                     finished_items,
                     64);
@@ -184,7 +169,6 @@ for (int k = 0; k < finished_count; k++) {
     int has_winner = 0;
     char err[256];
 
-    // ⚠️ CHỈ xử lý nếu hàm này thực sự vừa kết thúc
     int ok = auction_finish_if_needed(
                 item_id,
                 &room_id,
@@ -194,7 +178,7 @@ for (int k = 0; k < finished_count; k++) {
                 err, sizeof(err));
 
     if (ok != 1) {
-        continue; // ❗ đã xử lý rồi → bỏ qua
+        continue; 
     }
 
     if (has_winner) {
@@ -205,7 +189,6 @@ for (int k = 0; k < finished_count; k++) {
         broadcast_to_room(room_id, notify, strlen(notify),
                           clientSockets, clientRoomIds);
 
-        // log
         char details[64];
         snprintf(details, sizeof(details), "item %d won by %d price %lld",
                  item_id, winner_id, final_price);
@@ -220,7 +203,7 @@ for (int k = 0; k < finished_count; k++) {
     }
 }
         }
-        // Kết nối mới
+
 if (FD_ISSET(listenSock, &readfds)) {
     clientSock = accept(listenSock,
                         (struct sockaddr*)&clientAddr,
@@ -235,8 +218,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                 clientSockets[i] = clientSock;
                 clientUserIds[i] = 0;
                 clientRoomIds[i] = 0;
-                
-                // Init buffer 1KB
+
                 clientBufCap[i] = 1024;
                 clientBufLen[i] = 0;
                 clientBuffers[i] = (char*)malloc(clientBufCap[i]);
@@ -252,21 +234,25 @@ if (FD_ISSET(listenSock, &readfds)) {
     }
 }
 
-        // Dữ liệu từ client
         for (i = 0; i < MAX_CLIENTS; i++) {
             SOCKET s = clientSockets[i];
             if (s != INVALID_SOCKET && FD_ISSET(s, &readfds)) {
-                // BUFFER LỚN 64KB ĐỂ NHẬN ẢNH BASE64
+
                 char clientBufTemp[65536]; 
                 int bytes = recv(s, clientBufTemp, sizeof(clientBufTemp) - 1, 0);
 
                 if (bytes <= 0) {
-                    // Client disconnect
+
                     printf("Client %d disconnected.\n", (int)s);
 
-                    // auto LEAVE_ROOM trong DB nếu đang ở phòng
                     if (clientUserIds[i] > 0 && clientRoomIds[i] > 0) {
                         char err[256];
+
+                        char notify[256];
+                        snprintf(notify, sizeof(notify), "USER_LEFT %d\n", clientUserIds[i]);
+                        broadcast_to_room(clientRoomIds[i], notify, strlen(notify),
+                                          clientSockets, clientRoomIds);
+
                         room_leave(clientUserIds[i], clientRoomIds[i],
                                    err, sizeof(err));
                     }
@@ -275,14 +261,13 @@ if (FD_ISSET(listenSock, &readfds)) {
                     clientSockets[i] = INVALID_SOCKET;
                     clientUserIds[i] = 0;
                     clientRoomIds[i] = 0;
-                    
-                    // Free buffer
+
                     if (clientBuffers[i]) free(clientBuffers[i]);
                     clientBuffers[i] = NULL;
                     clientBufLen[i] = 0;
                     clientBufCap[i] = 0;
                 } else {
-                    // APPEND DATA
+
                     if (clientBufLen[i] + bytes + 1 > clientBufCap[i]) {
                         int newCap = clientBufCap[i] * 2;
                         if (newCap < clientBufLen[i] + bytes + 1) newCap = clientBufLen[i] + bytes + 1;
@@ -290,7 +275,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                         
                         char *newBuf = (char*)realloc(clientBuffers[i], newCap);
                         if (!newBuf) {
-                            clientBufLen[i] = 0; // Clear buffer on error
+                            clientBufLen[i] = 0; 
                         } else {
                             clientBuffers[i] = newBuf;
                             clientBufCap[i] = newCap;
@@ -301,21 +286,19 @@ if (FD_ISSET(listenSock, &readfds)) {
                         memcpy(clientBuffers[i] + clientBufLen[i], clientBufTemp, bytes);
                         clientBufLen[i] += bytes;
                         clientBuffers[i][clientBufLen[i]] = '\0';
-                        
-                        // PROCESS COMMANDS LOOP
+
                         while (1) {
                             char *newline = strchr(clientBuffers[i], '\n');
-                            if (!newline) break; // Incomplete
+                            if (!newline) break; 
                             
                             *newline = '\0';
                             char *buf = clientBuffers[i];
                             trim_newline(buf);
-                            
-                            // Log short commands only
+
                             if (strlen(buf) > 0 && strlen(buf) < 200) printf("From %d: %s\n", (int)s, buf);
 
                             char cmd[32], arg1[128], arg2[128];
-                            // Clean vars
+
                             cmd[0] = '\0'; arg1[0] = '\0'; arg2[0] = '\0';
                             int n = sscanf(buf, "%31s %127s %127s", cmd, arg1, arg2);
 
@@ -325,7 +308,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         continue;
                     }
 
-                    // ================== REGISTER ==================
                     if (strcmp(cmd, "REGISTER") == 0) {
                         if (n != 3) {
                             const char *msg =
@@ -349,7 +331,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== LOGIN ==================
                     else if (strcmp(cmd, "LOGIN") == 0) {
                         if (n != 3) {
                             const char *msg =
@@ -374,7 +355,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== CHANGE_PASS ==================
                     else if (strcmp(cmd, "CHANGE_PASS") == 0) {
                         if (clientUserIds[i] <= 0) {
                             const char *msg = "ERROR Not logged in\n";
@@ -422,7 +402,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                             send(s, resp, (int)strlen(resp), 0);
                         }
                     }
-                    // ================== CREATE_ROOM ==================
+
                     else if (strcmp(cmd, "CREATE_ROOM") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -447,7 +427,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                                      "OK CREATE_ROOM %d\n", room_id);
                             send(s, resp, (int)strlen(resp), 0);
 
-                            // Owner auto join phòng mới
                             clientRoomIds[i] = room_id;
                             log_activity(clientUserIds[i], "CREATE_ROOM", arg1);
                         } else {
@@ -458,7 +437,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== LIST_ROOMS ==================
                     else if (strcmp(cmd, "LIST_ROOMS") == 0) {
                         char err[256];
                         char bufRooms[4096];
@@ -475,7 +453,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== LIST_ROOM_MEMBERS ==================
                     else if (strcmp(cmd, "LIST_ROOM_MEMBERS") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -506,7 +483,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== JOIN_ROOM ==================
                     else if (strcmp(cmd, "JOIN_ROOM") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -529,7 +505,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                             continue;
                         }
 
-                        // Trên 1 client: chỉ ở 1 phòng tại 1 thời điểm
                         if (clientRoomIds[i] != 0 && clientRoomIds[i] != room_id) {
                             const char *msg =
                                 "ERROR JOIN_ROOM already in another room\n";
@@ -551,10 +526,9 @@ if (FD_ISSET(listenSock, &readfds)) {
                             snprintf(details, sizeof(details), "room %d", room_id);
                             log_activity(clientUserIds[i], "JOIN_ROOM", details);
 
-                            // Broadcast user joined to all room members
                             char notify[256];
                             char username[64] = "User";
-                            // Get username from DB (simple query)
+
                             char uq[128];
                             snprintf(uq, sizeof(uq), 
                                      "SELECT username FROM users WHERE id = %d", 
@@ -582,7 +556,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== LEAVE_ROOM ==================
                     else if (strcmp(cmd, "LEAVE_ROOM") == 0) {
                         if (clientUserIds[i] <= 0) {
                             const char *msg =
@@ -591,8 +564,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                             continue;
                         }
 
-                        // Nếu có tham số: LEAVE_ROOM 2 -> rời phòng 2
-                        // Nếu không: dùng phòng hiện tại của client
                         int target_room_id = clientRoomIds[i];
                         if (n >= 2) {
                             int rid = atoi(arg1);
@@ -611,7 +582,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                                             target_room_id,
                                             err, sizeof(err));
                         if (ok == 1) {
-                            // Broadcast user left BEFORE clearing clientRoomIds
+
                             char notify[256];
                             snprintf(notify, sizeof(notify),
                                      "USER_LEFT %d\n", clientUserIds[i]);
@@ -631,7 +602,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== CLOSE_ROOM ==================
                     else if (strcmp(cmd, "CLOSE_ROOM") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -673,7 +643,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== OPEN_ROOM ==================
                     else if (strcmp(cmd, "OPEN_ROOM") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -712,7 +681,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== CREATE_ITEM ==================
                     else if (strcmp(cmd, "CREATE_ITEM") == 0) {
                         if (clientUserIds[i] <= 0) {
                             const char *msg =
@@ -721,7 +689,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                             continue;
                         }
 
-                        // Bắt buộc đang ở trong 1 phòng
                         if (clientRoomIds[i] <= 0) {
                             const char *msg =
                                 "ERROR CREATE_ITEM must JOIN_ROOM first\n";
@@ -732,25 +699,19 @@ if (FD_ISSET(listenSock, &readfds)) {
                         long long start_price = 0, buy_now_price = 0;
                         char *name_ptr = NULL;
                         char *image_ptr = NULL;
-                        
-                        // Parse manually to avoid sscanf limits on large strings
-                        // Format: CREATE_ITEM name startPrice buyNowPrice [imageUrl]
-                        // buf starts with "CREATE_ITEM ..."
+
                         char *p = buf;
-                        
-                        // Skip CMD
+
                         while (*p && !isspace(*p)) p++;
                         while (*p && isspace(*p)) p++;
-                        
-                        // arg1: name
+
                         if (*p) {
                             name_ptr = p;
                             while (*p && !isspace(*p)) p++;
                             if (*p) *p++ = '\0';
                             while (*p && isspace(*p)) p++;
                         }
-                        
-                        // arg2: start_price
+
                         if (*p) {
                             char *price_str = p;
                             while (*p && !isspace(*p)) p++;
@@ -758,8 +719,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                             while (*p && isspace(*p)) p++;
                             start_price = atoll(price_str);
                         }
-                        
-                        // arg3: buy_now_price
+
                         if (*p) {
                             char *bn_str = p;
                             while (*p && !isspace(*p)) p++;
@@ -767,13 +727,10 @@ if (FD_ISSET(listenSock, &readfds)) {
                             while (*p && isspace(*p)) p++;
                             buy_now_price = atoll(bn_str);
                         }
-                        
-                        // arg4: image_url (optional)
+
                         if (*p) {
                              image_ptr = p;
-                             // Image URL might be the last token, taking rest of string?
-                             // Yes, assumes no extra args.
-                             // But let's trim trailing spaces just in case
+
                              char *end = image_ptr + strlen(image_ptr) - 1;
                              while (end > image_ptr && isspace(*end)) *end-- = '\0';
                         }
@@ -786,10 +743,10 @@ if (FD_ISSET(listenSock, &readfds)) {
 
                         char err[256];
                         int item_id = 0;
-                        // Use pointers directly (zero copy)
+
                         int ok = item_create(clientUserIds[i], clientRoomIds[i], name_ptr,
                                              start_price, buy_now_price,
-                                             image_ptr, // Can be NULL
+                                             image_ptr, 
                                              &item_id, err, sizeof(err));
                         if (ok == 1) {
                             char resp[128];
@@ -802,16 +759,12 @@ if (FD_ISSET(listenSock, &readfds)) {
                                      "ERROR CREATE_ITEM %s\n", err);
                             send(s, resp, (int)strlen(resp), 0);
                         }
-                        // No malloc, no free needed for image_url
+
                     }
 
-                    // ================== LIST_ITEMS ==================
                     else if (strcmp(cmd, "LIST_ITEMS") == 0) {
                         int room_id = 0;
 
-                        // Cú pháp:
-                        //   LIST_ITEMS          -> tất cả phòng (room_id = 0)
-                        //   LIST_ITEMS roomId   -> chỉ 1 phòng
                         if (n == 2) {
                             room_id = atoi(arg1);
                             if (room_id < 0) {
@@ -829,8 +782,6 @@ if (FD_ISSET(listenSock, &readfds)) {
 
                         char err[256];
 
-                        
-                        // Use heap buffer for output (max 8MB)
                         size_t outCap = 8 * 1024 * 1024;
                         char *out = (char*)malloc(outCap);
                         if (!out) {
@@ -854,7 +805,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         free(out);
                     }
 
-                    // ================== DELETE_ITEM ==================
                     else if (strcmp(cmd, "DELETE_ITEM") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -892,7 +842,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== SEARCH_ITEMS ==================
                     else if (strcmp(cmd, "SEARCH_ITEMS") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -916,7 +865,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== SEARCH_ITEMS_TIME ==================
                     else if (strcmp(cmd, "SEARCH_ITEMS_TIME") == 0) {
                         if (n != 3) {
                             const char *msg =
@@ -933,7 +881,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         strncpy(to, arg2, sizeof(to)-1);
                         to[sizeof(to)-1] = '\0';
 
-                        // đổi '_' -> ' '
                         for (char *p = from; *p; ++p) {
                             if (*p == '_') *p = ' ';
                         }
@@ -957,7 +904,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-                    // ================== START_AUCTION ==================
                     else if (strcmp(cmd, "START_AUCTION") == 0) {
                         if (clientUserIds[i] <= 0) {
                             const char *msg =
@@ -969,8 +915,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         int item_id = 0;
                         int duration = 0;
 
-                        // Cú pháp:
-                        //   START_AUCTION itemId [durationSeconds]
                         int num = sscanf(buf, "%*s %d %d", &item_id, &duration);
                         if (num < 1) {
                             const char *msg =
@@ -979,7 +923,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                             send(s, msg, (int)strlen(msg), 0);
                             continue;
                         }
-                        if (duration <= 0) duration = 120; // default 2 phút
+                        if (duration <= 0) duration = 120; 
 
                         char err[256];
                         int room_id = 0;
@@ -996,26 +940,23 @@ if (FD_ISSET(listenSock, &readfds)) {
                                                     &seconds_left,
                                                     err, sizeof(err));
                         if (ok == 1) {
-                            // trả lời cho client gửi lệnh
+
                             char resp[256];
                             snprintf(resp, sizeof(resp),
                                      "OK START_AUCTION %d %d\n",
                                      item_id, seconds_left);
                             send(s, resp, (int)strlen(resp), 0);
 
-                            // broadcast cho mọi người trong phòng kèm image
                             char *notify = NULL;
                             char q[128];
                             snprintf(q, sizeof(q), "SELECT description FROM items WHERE id = %d", item_id);
-                            
-                            // Fetch image url (description)
+
                             if (mysql_query(db_get_conn(), q) == 0) {
                                 MYSQL_RES *res = mysql_store_result(db_get_conn());
                                 if (res) {
                                     MYSQL_ROW row = mysql_fetch_row(res);
                                     const char *img = (row && row[0]) ? row[0] : "NOIMG";
-                                    
-                                    // Allocate buffer: 256 header + image length + safety
+
                                     size_t msgLen = 256 + strlen(img) + 1;
                                     notify = (char*)malloc(msgLen);
                                     if (notify) {
@@ -1033,7 +974,7 @@ if (FD_ISSET(listenSock, &readfds)) {
                                                   clientSockets, clientRoomIds);
                                 free(notify);
                             } else {
-                                // Fallback layout cũ nếu lỗi (hoặc OOM)
+
                                 char fallback[256];
                                 snprintf(fallback, sizeof(fallback),
                                          "AUCTION_STARTED %d %lld %lld %d NOIMG\n",
@@ -1050,8 +991,6 @@ if (FD_ISSET(listenSock, &readfds)) {
                         }
                     }
 
-
-                    // ================== BID ==================
 else if (strcmp(cmd, "BID") == 0) {
     if (clientUserIds[i] <= 0) {
         const char *msg = "ERROR BID must LOGIN first\n";
@@ -1059,7 +998,6 @@ else if (strcmp(cmd, "BID") == 0) {
         continue;
     }
 
-    // Lệnh chuẩn: BID itemId amount
     if (n != 3) {
         const char *msg = "ERROR BID usage: BID itemId amount\n";
         send(s, msg, (int)strlen(msg), 0);
@@ -1075,7 +1013,6 @@ else if (strcmp(cmd, "BID") == 0) {
         continue;
     }
 
-    // LOG xem server thực sự nhận giá bao nhiêu
     printf("[DEBUG BID] user=%d item=%d amount=%lld\n",
            clientUserIds[i], item_id, amount);
 
@@ -1085,7 +1022,7 @@ else if (strcmp(cmd, "BID") == 0) {
     int seconds_left = 0;
 
     int ok = auction_bid(clientUserIds[i],
-                      clientRoomIds[i],   // phòng hiện tại
+                      clientRoomIds[i],   
                       item_id,
                       amount,
                       &current_price,
@@ -1099,7 +1036,6 @@ else if (strcmp(cmd, "BID") == 0) {
                  item_id, current_price, seconds_left);
         send(s, resp, (int)strlen(resp), 0);
 
-        // thông báo cho tất cả người trong phòng
         char notify[256];
         snprintf(notify, sizeof(notify),
                  "NEW_BID %d %d %lld %d\n",
@@ -1128,7 +1064,6 @@ else if (strcmp(cmd, "BID") == 0) {
     }
 }
 
-                    // ================== BUY_NOW ==================
                     else if (strcmp(cmd, "BUY_NOW") == 0) {
                         if (clientUserIds[i] <= 0) {
                             const char *msg =
@@ -1168,7 +1103,6 @@ else if (strcmp(cmd, "BID") == 0) {
                                      item_id, final_price);
                             send(s, resp, (int)strlen(resp), 0);
 
-                            // Broadcast cho phòng
                             char notify[256];
                             snprintf(notify, sizeof(notify),
                                      "ITEM_SOLD %d %d %lld\n",
@@ -1187,7 +1121,6 @@ else if (strcmp(cmd, "BID") == 0) {
                         }
                     }
 
-                    // ================== LIST_BIDS ==================
                     else if (strcmp(cmd, "LIST_BIDS") == 0) {
                         if (n != 2) {
                             const char *msg =
@@ -1219,17 +1152,11 @@ else if (strcmp(cmd, "BID") == 0) {
                         }
                     }
 
-                    // ================== Lệnh khác ==================
                     else {
                         const char *msg = "UNKNOWN COMMAND\n";
                         send(s, msg, (int)strlen(msg), 0);
                     }
-                    // } removed
 
-                    
-                    // --- END EXISTING LOGIC ---
-                    
-                    // SHIFT BUFFER
                     int processed_len = (newline - clientBuffers[i]) + 1;
                     int remaining = clientBufLen[i] - processed_len;
                     if (remaining > 0) {
@@ -1237,10 +1164,10 @@ else if (strcmp(cmd, "BID") == 0) {
                     }
                     clientBufLen[i] = remaining;
                     clientBuffers[i][clientBufLen[i]] = '\0';
-                 } // End while
-              } // End if buffer check
-           } // End else
-        } // End FD_ISSET
+                 } 
+              } 
+           } 
+        } 
      }
 
     }

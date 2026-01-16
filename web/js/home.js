@@ -1,4 +1,4 @@
-// --- 1. KIỂM TRA ĐĂNG NHẬP ---
+
 const userJson = localStorage.getItem("user");
 if (!userJson) {
     alert("Bạn chưa đăng nhập!");
@@ -6,17 +6,11 @@ if (!userJson) {
 }
 const currentUser = JSON.parse(userJson);
 
-// Hiển thị tên người dùng trên Header
 const userNameElem = document.getElementById("user-name");
 const userAvatarElem = document.getElementById("user-avatar");
 
 if (userNameElem) userNameElem.innerText = currentUser.username || "User " + currentUser.id;
 if (userAvatarElem) userAvatarElem.src = `https://ui-avatars.com/api/?name=${currentUser.username}&background=random`;
-
-// --- 2. KẾT NỐI & TẢI DỮ LIỆU ---
-
-// Đợi LOGIN thành công rồi mới load dữ liệu
-// (loadRoomList sẽ được gọi sau khi nhận "OK LOGIN" trong ws.js)
 
 function loadRoomList() {
     console.log("Đang tải danh sách phòng...");
@@ -25,7 +19,7 @@ function loadRoomList() {
 
 function loadItemList() {
     console.log("Đang tải danh sách vật phẩm...");
-    // Gửi roomId = 0 để lấy tất cả vật phẩm
+
     sendPacket({ type: "LIST_ITEMS", roomId: 0 });
 }
 
@@ -34,12 +28,9 @@ function loadStats() {
     sendPacket({ type: "MY_STATS" });
 }
 
-// --- 3. XỬ lý DỮ LIỆU TỪ SERVER C ---
-
 window.onServerMessage = function (msg) {
     console.log("Server trả về:", msg);
 
-    // Khi LOGIN thành công, tự động load dữ liệu
     if (msg.startsWith("OK LOGIN")) {
         console.log("✅ Login thành công, bắt đầu load dữ liệu...");
         loadRoomList();
@@ -47,13 +38,12 @@ window.onServerMessage = function (msg) {
         return;
     }
 
-    // Kiểm tra xem message là danh sách phòng hay vật phẩm
     if (msg.startsWith("ROOM") || msg.startsWith("NO_ROOMS")) {
         renderRooms(msg);
     }
-    // Kết quả tìm kiếm
+
     else if (msg.startsWith("SEARCH_RESULT") || (msg.includes("ITEM") && document.getElementById("tab-search").style.display !== "none")) {
-        // Nếu đang ở tab search, render kết quả tìm kiếm
+
         const tabSearch = document.getElementById("tab-search");
         if (tabSearch && tabSearch.style.display !== "none") {
             renderSearchResults(msg);
@@ -64,11 +54,11 @@ window.onServerMessage = function (msg) {
     else if (msg.startsWith("ITEM") || msg.startsWith("NO_ITEMS")) {
         renderItems(msg);
     }
-    // Thống kê
+
     else if (msg.startsWith("STATS") || msg.startsWith("WON")) {
         renderStats(msg);
     }
-    // Đổi mật khẩu
+
     else if (msg.startsWith("OK CHANGE_PASS")) {
         alert("Đổi mật khẩu thành công!");
         closeProfileModal();
@@ -77,15 +67,15 @@ window.onServerMessage = function (msg) {
         const err = msg.substring("ERROR CHANGE_PASS".length).trim();
         alert("Lỗi đổi mật khẩu: " + err);
     }
-    // Phản hồi tạo phòng thành công
+
     else if (msg.startsWith("OK CREATE_ROOM")) {
         alert("Tạo phòng thành công!");
-        loadRoomList(); // Tải lại danh sách
+        loadRoomList(); 
     }
-    // Phản hồi tham gia phòng thành công -> Chuyển trang
+
     else if (msg.startsWith("OK JOIN_ROOM")) {
         const roomId = msg.split(" ")[2];
-        // Chuyển sang trang phòng đấu giá với ID phòng trên URL
+
         window.location.href = `room.html?id=${roomId}`;
     }
     else if (msg.startsWith("ERROR")) {
@@ -93,13 +83,11 @@ window.onServerMessage = function (msg) {
     }
 };
 
-// --- 4. HÀM HIỂN THỊ (RENDER) ---
-
 function renderRooms(textData) {
     const tbody = document.getElementById("room-list");
     if (!tbody) return;
 
-    tbody.innerHTML = ""; // Xóa cũ
+    tbody.innerHTML = ""; 
 
     if (textData.trim() === "NO_ROOMS") {
         tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>Chưa có phòng nào.</td></tr>";
@@ -113,14 +101,13 @@ function renderRooms(textData) {
         if (!line.startsWith("ROOM")) return;
 
         const parts = line.split(" ");
-        // parts: ROOM id name ownerId ownerName status
 
         if (parts.length >= 6) {
             const id = parts[1];
             const name = parts[2].replace(/_/g, ' ');
             const ownerId = parts[3];
             const ownerName = parts[4].replace(/_/g, ' ');
-            const status = parts[5]; // 1=Open, 0=Closed
+            const status = parts[5]; 
 
             const tr = document.createElement("tr");
 
@@ -130,7 +117,7 @@ function renderRooms(textData) {
 
             let actionBtn = "";
             if (currentUser.id == ownerId) {
-                // Nếu là chủ phòng -> Nút quản lý (vào phòng luôn)
+
                 actionBtn = `<button class="btn-primary" style="background:#e67e22" onclick="joinRoom(${id})">Quản lý</button>`;
             } else if (status == '1') {
                 actionBtn = `<button class="btn-primary" onclick="joinRoom(${id})">Tham gia</button>`;
@@ -168,16 +155,14 @@ function renderItems(textData) {
         if (!line.startsWith("ITEM")) return;
 
         const parts = line.split(" ");
-        // ITEM id room_id seller_id name start_price ...
 
-        if (parts.length >= 8) {
+        if (parts.length >= 9) {
             const id = parts[1];
             const roomId = parts[2];
-            const name = parts[4];
-            const price = parseInt(parts[5]).toLocaleString();
-            const status = parts[7];
+            const name = parts[5]; 
+            const price = parseInt(parts[6]).toLocaleString(); 
+            const status = parts[8]; 
 
-            // Ở sảnh chờ: Nút bấm là "Vào phòng đấu" thay vì đấu giá trực tiếp
             let actionBtn = "";
             if (status === 'RUN') {
                 actionBtn = `<button class="btn-bid" onclick="joinRoom(${roomId})">Vào phòng đấu</button>`;
@@ -205,15 +190,12 @@ function renderItems(textData) {
     });
 }
 
-// --- 5. CÁC HÀM TƯƠNG TÁC ---
-
 function switchTab(tab) {
     const tabs = document.querySelectorAll(".tab-item");
     const tabRooms = document.getElementById("tab-rooms");
     const tabItems = document.getElementById("tab-items");
     const tabStats = document.getElementById("tab-stats");
 
-    // Reset all tabs
     tabs.forEach(t => t.classList.remove("active"));
     if (tabRooms) tabRooms.style.display = "none";
     if (tabItems) tabItems.style.display = "none";
@@ -239,10 +221,6 @@ function switchTab(tab) {
         loadStats();
     }
 }
-
-// ============================================================
-// SEARCH FUNCTIONS
-// ============================================================
 
 function handleSearchKeyPress(event) {
     if (event.key === "Enter") {
@@ -278,7 +256,6 @@ function searchByTime() {
         return;
     }
 
-    // Convert to server format: YYYY-MM-DD HH:MM:SS
     const fromStr = from.replace("T", " ") + ":00";
     const toStr = to.replace("T", " ") + ":00";
 
@@ -305,7 +282,7 @@ function renderSearchResults(textData) {
         if (!line.startsWith("ITEM")) return;
 
         found = true;
-        // Format: ITEM id room sellerId sellerName name price buynow status queue start end img
+
         const parts = line.split(" ");
         if (parts.length >= 9) {
             const id = parts[1];
@@ -347,7 +324,6 @@ function renderStats(textData) {
         line = line.trim();
         if (!line) return;
 
-        // STATS joined won spent sold earned
         if (line.startsWith("STATS ")) {
             const parts = line.split(" ");
             if (parts.length >= 6) {
@@ -370,7 +346,7 @@ function renderStats(textData) {
                 if (elEarned) elEarned.innerText = earned + " đ";
             }
         }
-        // WON itemId name price date
+
         else if (line.startsWith("WON ")) {
             const parts = line.split(" ");
             if (parts.length >= 4) {
@@ -397,11 +373,9 @@ function renderStats(textData) {
 
 function logout() {
     localStorage.removeItem("user");
-    sessionStorage.removeItem("loginPassword"); // Xóa password khi logout
+    sessionStorage.removeItem("loginPassword"); 
     window.location.href = "index.html";
 }
-
-// --- MODAL TẠO PHÒNG ---
 
 function requestCreateRoom() {
     const modal = document.getElementById("modal-create-room");
@@ -427,16 +401,12 @@ function confirmCreateRoom() {
         return;
     }
 
-    // Gửi lệnh tạo phòng. Lưu ý: Thay khoảng trắng bằng _ để tránh lỗi scanf phía C server (tạm thời)
     sendPacket({ type: "CREATE_ROOM", roomName: name.replace(/\s+/g, '_') });
     closeModal();
 }
 
-// --- THAM GIA PHÒNG ---
-
 function joinRoom(id) {
-    // Gửi lệnh tham gia
-    // Đảm bảo id là số
+
     const roomId = parseInt(id, 10);
     if (isNaN(roomId) || roomId <= 0) {
         alert("ID phòng không hợp lệ!");

@@ -5,7 +5,6 @@
 
 static MYSQL *g_db = NULL;
 
-// Forward declaration
 static void escape_string(MYSQL *conn, const char *src, char *dst, size_t dstSize);   
 
 int db_init(void) {
@@ -72,7 +71,6 @@ int log_activity(int user_id, const char *action, const char *details) {
     return mysql_query(conn, query) == 0;
 }
 
-// escape string để ghép vào SQL
 static void escape_string(MYSQL *conn, const char *src,
                           char *dst, size_t dstSize) {
     unsigned long len = (unsigned long)strlen(src);

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <title>AuctionZone Register</title>
@@ -7,62 +8,64 @@
   <link rel="stylesheet" href="css/auth.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
 
-<div class="container">
-  <!-- LEFT -->
-  <div class="left-panel">
-    <h1>AuctionZone</h1>
-    <div class="illustration">
-      <img src="assets/img/auction.png" alt="Auction">
+  <div class="container">
+    
+    <div class="left-panel">
+      <h1>AuctionZone</h1>
+      <div class="illustration">
+        <img src="images/auction_hero.png" alt="Auction">
+      </div>
+    </div>
+
+    
+    <div class="right-panel">
+      <img src="logo.png" class="logo-icon" alt="Logo">
+
+      <h2>ĐĂNG KÝ TÀI KHOẢN</h2>
+
+      
+      <div class="input-group">
+        <i class="fa-regular fa-user"></i>
+        <input id="reg-username" type="text" placeholder="Username">
+      </div>
+
+      
+      <div class="input-group">
+        <i class="fa-solid fa-lock"></i>
+        <input id="reg-password" type="password" placeholder="Mật khẩu">
+      </div>
+
+      
+      <div class="input-group">
+        <i class="fa-solid fa-lock"></i>
+        <input id="reg-confirm" type="password" placeholder="Nhập lại mật khẩu">
+      </div>
+
+      
+      <div id="register-error" class="error"></div>
+
+      
+      <button class="btn btn-register" onclick="register()">
+        Đăng ký tài khoản
+      </button>
+
+      <div class="separator">
+        <span>or</span>
+      </div>
+
+      
+      <button class="btn btn-login" onclick="goLogin()">
+        Đăng nhập
+      </button>
     </div>
   </div>
 
-  <!-- RIGHT -->
-  <div class="right-panel">
-    <img src="logo.png" class="logo-icon" alt="Logo">
-
-    <h2>ĐĂNG KÝ TÀI KHOẢN</h2>
-
-    <!-- USERNAME -->
-    <div class="input-group">
-      <i class="fa-regular fa-user"></i>
-      <input id="reg-username" type="text" placeholder="Username">
-    </div>
-
-    <!-- PASSWORD -->
-    <div class="input-group">
-      <i class="fa-solid fa-lock"></i>
-      <input id="reg-password" type="password" placeholder="Mật khẩu">
-    </div>
-
-    <!-- CONFIRM PASSWORD -->
-    <div class="input-group">
-      <i class="fa-solid fa-lock"></i>
-      <input id="reg-confirm" type="password" placeholder="Nhập lại mật khẩu">
-    </div>
-
-    <!-- ERROR -->
-    <div id="register-error" class="error"></div>
-
-    <!-- REGISTER BUTTON -->
-    <button class="btn btn-register" onclick="register()">
-      Đăng ký tài khoản
-    </button>
-
-    <div class="separator">
-      <span>or</span>
-    </div>
-
-    <!-- BACK TO LOGIN -->
-    <button class="btn btn-login" onclick="goLogin()">
-      Đăng nhập
-    </button>
-  </div>
-</div>
-
-<script src="js/ws.js"></script>
-<script src="js/register.js"></script>
+  <script src="js/ws.js"></script>
+  <script src="js/register.js"></script>
 
 </body>
+
 </html>

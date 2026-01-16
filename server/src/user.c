@@ -6,12 +6,11 @@
 #include "db.h"
 #include "user.h"
 
-// escape string để ghép vào SQL
 static void escape_string(MYSQL *conn, const char *src,
                           char *dst, size_t dstSize) {
     unsigned long len = (unsigned long)strlen(src);
     if (dstSize < 2 * len + 1) {
-        // nếu buffer quá nhỏ thì thôi 
+
         strncpy(dst, src, dstSize - 1);
         dst[dstSize - 1] = '\0';
         return;
@@ -32,7 +31,6 @@ int user_register(const char *username, const char *password,
     escape_string(conn, username, uEsc, sizeof(uEsc));
     escape_string(conn, password, pEsc, sizeof(pEsc));
 
-    // kiểm tra trùng username
     snprintf(query, sizeof(query),
              "SELECT id FROM users WHERE username = '%s' LIMIT 1", uEsc);
     if (mysql_query(conn, query) != 0) {
@@ -54,7 +52,6 @@ int user_register(const char *username, const char *password,
     }
     mysql_free_result(res);
 
-    // chèn user mới
     snprintf(query, sizeof(query),
              "INSERT INTO users(username, password_hash, full_name) "
              "VALUES('%s', '%s', NULL)", uEsc, pEsc);
@@ -118,7 +115,6 @@ int user_login(const char *username, const char *password,
     return ok;
 }
 
-// Lấy thống kê đấu giá của user
 int user_get_stats(int user_id,
                    char *out_buf, size_t buf_size,
                    char *errMsg, size_t errSize) {
@@ -139,7 +135,6 @@ int user_get_stats(int user_id,
     out_buf[0] = '\0';
     size_t used = 0;
 
-    // 1. Tổng số phiên đã tham gia (có đặt giá)
     snprintf(query, sizeof(query),
         "SELECT COUNT(DISTINCT item_id) FROM bids WHERE user_id = %d", user_id);
     mysql_query(conn, query);
@@ -150,7 +145,6 @@ int user_get_stats(int user_id,
     }
     if (res) mysql_free_result(res);
 
-    // 2. Số phiên thắng
     snprintf(query, sizeof(query),
         "SELECT COUNT(*) FROM items WHERE winner_id = %d", user_id);
     mysql_query(conn, query);
@@ -161,7 +155,6 @@ int user_get_stats(int user_id,
     }
     if (res) mysql_free_result(res);
 
-    // 3. Tổng tiền đã chi (mua được)
     snprintf(query, sizeof(query),
         "SELECT COALESCE(SUM(final_price), 0) FROM items WHERE winner_id = %d", user_id);
     mysql_query(conn, query);
@@ -172,7 +165,6 @@ int user_get_stats(int user_id,
     }
     if (res) mysql_free_result(res);
 
-    // 4. Số vật phẩm đã bán
     snprintf(query, sizeof(query),
         "SELECT COUNT(*) FROM items WHERE seller_id = %d AND status = 'SOLD'", user_id);
     mysql_query(conn, query);
@@ -183,7 +175,6 @@ int user_get_stats(int user_id,
     }
     if (res) mysql_free_result(res);
 
-    // 5. Tổng tiền đã thu (bán được)
     snprintf(query, sizeof(query),
         "SELECT COALESCE(SUM(final_price), 0) FROM items WHERE seller_id = %d AND status = 'SOLD'", user_id);
     mysql_query(conn, query);
@@ -194,7 +185,6 @@ int user_get_stats(int user_id,
     }
     if (res) mysql_free_result(res);
 
-    // Output: STATS joined won spent sold earned
     char line[256];
     snprintf(line, sizeof(line),
         "STATS %d %d %lld %d %lld\n",
@@ -205,7 +195,6 @@ int user_get_stats(int user_id,
         strcpy(out_buf, line);
     }
 
-    // 6. Danh sách vật phẩm đã thắng
     snprintf(query, sizeof(query),
         "SELECT id, name, final_price, auction_end FROM items "
         "WHERE winner_id = %d ORDER BY auction_end DESC LIMIT 10", user_id);
@@ -228,9 +217,6 @@ int user_get_stats(int user_id,
     return 1;
 }
 
-// ============================================================
-// Change password (by user_id)
-// ============================================================
 int user_change_password(int user_id, const char *old_pass,
                          const char *new_pass, char *errBuf, int errSize) {
     MYSQL *conn = db_get_conn();
@@ -244,7 +230,6 @@ int user_change_password(int user_id, const char *old_pass,
     escape_string(conn, old_pass, oldEsc, sizeof(oldEsc));
     escape_string(conn, new_pass, newEsc, sizeof(newEsc));
 
-    // 1. Verify old password
     snprintf(query, sizeof(query), 
              "SELECT id FROM users WHERE id=%d AND password_hash='%s'", 
              user_id, oldEsc);
@@ -260,7 +245,6 @@ int user_change_password(int user_id, const char *old_pass,
         return 0;
     }
 
-    // Fixed implicit declaration by including prototype in mysql.h, or checking logic
     if (mysql_num_rows(res) == 0) {
         mysql_free_result(res);
         snprintf(errBuf, errSize, "Mật khẩu cũ không chính xác");
@@ -268,7 +252,6 @@ int user_change_password(int user_id, const char *old_pass,
     }
     mysql_free_result(res);
 
-    // 2. Update new password
     snprintf(query, sizeof(query),
              "UPDATE users SET password_hash='%s' WHERE id=%d",
              newEsc, user_id);
@@ -278,5 +261,5 @@ int user_change_password(int user_id, const char *old_pass,
         return 0;
     }
 
-    return 1; // Success
+    return 1; 
 }

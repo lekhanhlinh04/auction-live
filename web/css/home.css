@@ -18,7 +18,6 @@ body {
     padding: 0 25px;
 }
 
-/* HEADER - Premium Gradient */
 header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -107,7 +106,6 @@ header {
     transform: scale(1.05);
 }
 
-/* TOOLBAR & TABS */
 .toolbar {
     display: flex;
     justify-content: space-between;
@@ -162,7 +160,6 @@ header {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* TABLE (DANH SÁCH PHÒNG) */
 .table-wrapper {
     background: white;
     border-radius: 8px;
@@ -214,7 +211,6 @@ tr:hover {
     font-size: 0.85rem;
 }
 
-/* GRID (VẬT PHẨM) */
 .grid-wrapper {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -285,7 +281,6 @@ tr:hover {
     background-color: #dbeaff;
 }
 
-/* MODAL STYLES */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -293,9 +288,9 @@ tr:hover {
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
-    /* Nền tối mờ */
+    
     display: none;
-    /* Mặc định ẩn */
+    
     justify-content: center;
     align-items: center;
     z-index: 1000;
@@ -354,7 +349,7 @@ tr:hover {
     width: 100%;
     padding: 12px;
     background-color: #e74c3c;
-    /* Màu đỏ như thiết kế */
+    
     color: white;
     border: none;
     border-radius: 4px;
@@ -396,7 +391,7 @@ tr:hover {
     width: 100%;
     padding: 12px;
     background-color: #333;
-    /* Màu đen */
+    
     color: white;
     border: none;
     border-radius: 4px;
@@ -408,7 +403,6 @@ tr:hover {
     background-color: #555;
 }
 
-/* STATS PAGE */
 .stats-container {
     background: white;
     padding: 30px;
@@ -477,10 +471,6 @@ tr:hover {
     color: #333;
     margin-bottom: 15px;
 }
-
-/* ============================================
-   SEARCH PANEL STYLES
-   ============================================ */
 
 .search-panel {
     background: white;
@@ -581,9 +571,6 @@ tr:hover {
     margin-right: 8px;
 }
 
-/* ============================================
-   PROFILE MODAL STYLES
-   ============================================ */
 .profile-info {
     display: flex;
     align-items: center;
@@ -699,7 +686,6 @@ tr:hover {
     width: 100%;
 }
 
-/* Responsiveness for Table */
 .table-wrapper {
     width: 100%;
     overflow-x: auto;
@@ -714,7 +700,7 @@ table {
     border-collapse: collapse;
     background: white;
     min-width: 600px;
-    /* Force scroll on small screens */
+    
 }
 
 th,

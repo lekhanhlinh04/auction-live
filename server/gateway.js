@@ -1,11 +1,79 @@
 const WebSocket = require('ws');
 const net = require('net');
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
-const WS_PORT = 8080;  // Port cho WebSocket (web client kết nối vào đây)
+const WS_PORT = 8080;  // Port cho WebSocket
+const HTTP_PORT = 3000; // Port cho API Upload
+
+const UPLOAD_DIR = path.join(__dirname, '../web/uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// ============================================================
+// 1. EXPRESS SERVER (API UPLOAD)
+// ============================================================
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Serve static files (entire web client)
+// Users can access http://<IP>:3000 to view the site
+app.use(express.static(path.join(__dirname, '../web')));
+
+// Serve uploads specifically (redundant if inside web, but safe to keep)
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+// Multer config
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, UPLOAD_DIR);
+    },
+    filename: function (req, file, cb) {
+        // Giữ đuôi file, thêm timestamp để tránh trùng
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'img-' + uniqueSuffix + ext);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+// Upload Endpoint
+app.post('/upload', (req, res, next) => {
+    console.log(`📥 Upload request received. Content-Type: ${req.headers['content-type']}`);
+    next();
+}, upload.single('image'), (req, res) => {
+    if (!req.file) {
+        console.error('❌ Upload failed: No file received by Multer');
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // URL relative: uploads/filename
+    // Client sẽ lưu string này và gửi vào CREATE_ITEM
+    const fileUrl = `uploads/${req.file.filename}`;
+    console.log(`📸 Image uploaded: ${fileUrl}`);
+    res.json({ url: fileUrl });
+});
+
+app.listen(HTTP_PORT, () => {
+    console.log(`🌍 Upload Server running on http://localhost:${HTTP_PORT}`);
+});
+
+
+// ============================================================
+// 2. WEBSOCKET GATEWAY
+// ============================================================
 const TCP_SERVER_HOST = 'localhost';
-const TCP_SERVER_PORT = 8081;  // Port cho TCP server C (server C sẽ chạy ở đây)
+const TCP_SERVER_PORT = 8081;  // Port cho TCP server C
 
-// Tạo WebSocket server
 const wss = new WebSocket.Server({ port: WS_PORT });
 
 console.log(`🚀 WebSocket Gateway đang chạy trên port ${WS_PORT}`);
@@ -45,7 +113,8 @@ wss.on('connection', function (ws) {
     // Nhận dữ liệu từ TCP server C và chuyển tiếp đến WebSocket client
     tcpClient.on('data', function (data) {
         const message = data.toString();
-        console.log('📥 TCP → WS:', message);
+        // Log ngắn gọn
+        if (message.length < 500) console.log('📥 TCP → WS:', message.trim());
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(message);
         }
@@ -55,15 +124,12 @@ wss.on('connection', function (ws) {
     ws.on('message', function (jsonData) {
         try {
             const data = JSON.parse(jsonData);
-            console.log('📤 WS → TCP:', data);
-            console.log('📤 Data type:', typeof data.roomId, 'roomId:', data.roomId);
 
             // Chuyển đổi JSON thành lệnh text cho server C
             let command = '';
 
             if (data.type === 'LOGIN') {
                 command = `LOGIN ${data.username} ${data.password}\n`;
-                // Lưu thông tin user để tự động login lại khi reconnect
                 userInfo = { username: data.username, password: data.password };
             } else if (data.type === 'REGISTER') {
                 command = `REGISTER ${data.username} ${data.password}\n`;
@@ -74,22 +140,16 @@ wss.on('connection', function (ws) {
             } else if (data.type === 'CREATE_ROOM') {
                 command = `CREATE_ROOM ${data.roomName}\n`;
             } else if (data.type === 'JOIN_ROOM') {
-                // Đảm bảo roomId là số và loại bỏ khoảng trắng
                 if (data.roomId === undefined || data.roomId === null) {
-                    console.error('⚠️ Missing roomId:', data);
                     ws.send('ERROR JOIN_ROOM missing room_id\n');
                     return;
                 }
-                // Convert roomId thành số nguyên để đảm bảo format đúng
                 const roomIdNum = parseInt(data.roomId, 10);
                 if (isNaN(roomIdNum) || roomIdNum <= 0) {
-                    console.error('⚠️ Invalid roomId:', data.roomId, 'type:', typeof data.roomId);
                     ws.send('ERROR JOIN_ROOM invalid room_id\n');
                     return;
                 }
-                // Tạo command với số nguyên, không có khoảng trắng thừa
                 command = `JOIN_ROOM ${roomIdNum}\n`;
-                console.log('🔧 JOIN_ROOM command:', JSON.stringify(command), 'roomId:', roomIdNum);
             } else if (data.type === 'LEAVE_ROOM') {
                 command = `LEAVE_ROOM\n`;
             } else if (data.type === 'LIST_ITEMS') {
@@ -104,11 +164,11 @@ wss.on('connection', function (ws) {
                     command = `LIST_ITEMS\n`;
                 }
             } else if (data.type === 'CREATE_ITEM') {
-                // Loại bỏ khoảng trắng trong name và đảm bảo giá trị số
                 const name = String(data.name).trim().replace(/\s+/g, '_');
                 const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : '';
 
-                console.log(`🔍 Gateway CREATE_ITEM: Name=${name}, ImgLen=${imageUrl.length}`);
+                // Log create item (shortened)
+                console.log(`🔍 Gateway CREATE_ITEM: Name=${name}, Img=${imageUrl}`);
 
                 if (imageUrl) {
                     command = `CREATE_ITEM ${name} ${data.startPrice} ${data.buyNowPrice} ${imageUrl}\n`;
@@ -122,20 +182,9 @@ wss.on('connection', function (ws) {
                     `START_AUCTION ${itemId}\n`;
             } else if (data.type === 'BID') {
                 const itemId = parseInt(data.itemId, 10);
-                if (isNaN(itemId) || itemId <= 0) {
-                    console.error('⚠️ Invalid itemId:', data.itemId);
-                    ws.send('ERROR BID invalid itemId\n');
-                    return;
-                }
-                // Convert amount thành số nguyên lớn (long long)
                 const amount = parseInt(data.amount, 10);
-                if (isNaN(amount) || amount <= 0) {
-                    console.error('⚠️ Invalid amount:', data.amount);
-                    ws.send('ERROR BID invalid amount\n');
-                    return;
-                }
                 command = `BID ${itemId} ${amount}\n`;
-                console.log('🔧 BID command:', command.trim(), 'amount:', amount);
+                console.log('🔧 BID command:', command.trim());
             } else if (data.type === 'BUY_NOW') {
                 const itemId = String(data.itemId).trim();
                 command = `BUY_NOW ${itemId}\n`;
@@ -146,33 +195,18 @@ wss.on('connection', function (ws) {
             } else if (data.type === 'SEARCH_ITEMS') {
                 const keyword = String(data.keyword).trim().replace(/\s+/g, '_');
                 command = `SEARCH_ITEMS ${keyword}\n`;
-                console.log('🔍 Search command:', command.trim());
             } else if (data.type === 'SEARCH_ITEMS_TIME') {
                 const from = String(data.from).trim();
                 const to = String(data.to).trim();
                 command = `SEARCH_ITEMS_TIME ${from} ${to}\n`;
-                console.log('🔍 Search by time:', command.trim());
-            } else if (data.type === 'SEARCH_ITEMS_TIME') {
-                const from = String(data.from).trim();
-                const to = String(data.to).trim();
-                command = `SEARCH_ITEMS_TIME ${from} ${to}\n`;
-                console.log('🔍 Search by time:', command.trim());
             } else if (data.type === 'CHANGE_PASS') {
                 const oldPass = String(data.oldPass).trim();
                 const newPass = String(data.newPass).trim();
                 command = `CHANGE_PASS ${oldPass} ${newPass}\n`;
-                console.log('🔐 Change password command sent');
             } else if (data.type === 'LIST_BIDS') {
                 const itemId = parseInt(data.itemId, 10);
-                if (isNaN(itemId) || itemId <= 0) {
-                    console.error('⚠️ Invalid itemId for LIST_BIDS:', data.itemId);
-                    ws.send('ERROR LIST_BIDS invalid itemId\n');
-                    return;
-                }
                 command = `LIST_BIDS ${itemId}\n`;
-                console.log('📜 List bids for item:', itemId);
             } else if (data.type === 'CHAT') {
-                // Chat không cần gửi qua TCP server, broadcast trực tiếp qua WebSocket
                 const chatMessage = {
                     type: 'CHAT_MSG',
                     userId: data.userId,
@@ -180,15 +214,18 @@ wss.on('connection', function (ws) {
                     message: data.message,
                     timestamp: new Date().toLocaleTimeString('vi-VN')
                 };
-
-                // Broadcast tới tất cả clients
                 wss.clients.forEach((client) => {
-                    if (client.readyState === 1) { // WebSocket.OPEN
+                    if (client.readyState === 1) {
                         client.send(JSON.stringify(chatMessage));
                     }
                 });
-                console.log('💬 Chat broadcast:', chatMessage.username, ':', chatMessage.message);
-                return; // Không gửi qua TCP
+                return;
+            } else if (data.type === 'CLOSE_ROOM') {
+                const roomId = parseInt(data.roomId, 10);
+                command = `CLOSE_ROOM ${roomId}\n`;
+            } else if (data.type === 'OPEN_ROOM') {
+                const roomId = parseInt(data.roomId, 10);
+                command = `OPEN_ROOM ${roomId}\n`;
             } else {
                 console.warn('⚠️ Unknown command type:', data.type);
                 return;
@@ -196,12 +233,9 @@ wss.on('connection', function (ws) {
 
             // Gửi lệnh đến TCP server C
             if (connected) {
-                console.log('📨 Sending TCP command:', JSON.stringify(command));
                 tcpClient.write(command);
             } else {
-                // Nếu chưa kết nối, thêm vào queue
                 commandQueue.push(command);
-                // Thử kết nối lại nếu socket đã đóng
                 if (!tcpClient.connecting && !connected) {
                     connectTCP();
                 }
@@ -212,7 +246,6 @@ wss.on('connection', function (ws) {
         }
     });
 
-    // Xử lý đóng kết nối
     ws.on('close', function () {
         console.log('❌ Web client đã ngắt kết nối');
         if (connected) {
@@ -221,9 +254,8 @@ wss.on('connection', function (ws) {
     });
 
     tcpClient.on('close', function () {
-        console.log('❌ TCP server đã ngắt kết nối, sẽ thử kết nối lại sau 2 giây...');
+        console.log('❌ TCP server đã ngắt kết nối, sẽ kết nối lại...');
         connected = false;
-        // Tự động reconnect sau 2 giây
         setTimeout(function () {
             if (ws.readyState === WebSocket.OPEN) {
                 connectTCP();
@@ -234,10 +266,8 @@ wss.on('connection', function (ws) {
     tcpClient.on('error', function (err) {
         console.error('❌ TCP error:', err.message);
         connected = false;
-        // Thử kết nối lại sau 2 giây
         setTimeout(function () {
             if (ws.readyState === WebSocket.OPEN && !connected) {
-                console.log('🔄 Đang thử kết nối lại đến TCP server...');
                 connectTCP();
             }
         }, 2000);
@@ -249,4 +279,3 @@ wss.on('connection', function (ws) {
 });
 
 console.log('✅ Gateway sẵn sàng nhận kết nối!');
-

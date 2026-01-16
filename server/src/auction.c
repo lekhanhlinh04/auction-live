@@ -6,7 +6,6 @@
 #include "db.h"
 #include "auction.h"
 
-// escape string để ghép vào SQL an toàn hơn
 static void escape_string(MYSQL *conn, const char *src,
                           char *dst, size_t dstSize) {
     unsigned long len = (unsigned long)strlen(src);
@@ -17,8 +16,6 @@ static void escape_string(MYSQL *conn, const char *src,
     }
     mysql_real_escape_string(conn, dst, src, len);
 }
-
-// ============ BẮT ĐẦU ĐẤU GIÁ ============
 
 int auction_start(int user_id, int item_id, int duration_seconds,
                   int *out_room_id,
@@ -84,8 +81,6 @@ int auction_start(int user_id, int item_id, int duration_seconds,
         return 0;
     }
 
-    // SEQUENTIAL CHECK: Check if any item in this room is ONGOING
-    // Mỗi phòng chỉ được 1 item ONGOING
     char checkQ[256];
     snprintf(checkQ, sizeof(checkQ), 
              "SELECT COUNT(*) FROM items WHERE room_id=%d AND status='ONGOING'", room_id);
@@ -96,13 +91,12 @@ int auction_start(int user_id, int item_id, int duration_seconds,
             if (row2 && atoi(row2[0]) > 0) {
                 mysql_free_result(res2);
                 snprintf(errMsg, errSize, "Phòng đang có phiên đấu giá (chờ kết thúc)");
-                return 0; // REJECT
+                return 0; 
             }
             mysql_free_result(res2);
         }
     }
 
-    //Bắt đầu đấu giá - giữ lại buy_now_price để có thể mua ngay
     snprintf(query, sizeof(query),
         "UPDATE items "
         "SET status='ONGOING', "
@@ -126,8 +120,6 @@ int auction_start(int user_id, int item_id, int duration_seconds,
     return 1;
 }
 
-// ============ ĐẶT GIÁ (BID) ============
-
 int auction_bid(int user_id, int current_room_id,
                 int item_id, long long bid_amount,
                 long long *out_current_price,
@@ -150,7 +142,6 @@ int auction_bid(int user_id, int current_room_id,
     MYSQL_RES *res;
     MYSQL_ROW row;
 
-    //Lấy thông tin item
     snprintf(query, sizeof(query),
         "SELECT room_id, status, start_price, "
         "TIMESTAMPDIFF(SECOND, NOW(), auction_end) "
@@ -191,7 +182,6 @@ int auction_bid(int user_id, int current_room_id,
         return 0;
     }
 
-    //Lấy giá hiện tại cao nhất
     snprintf(query, sizeof(query),
         "SELECT COALESCE(MAX(amount), 0) "
         "FROM bids WHERE item_id = %d",
@@ -210,8 +200,6 @@ int auction_bid(int user_id, int current_room_id,
         current_price = atoll(row[0]);
     mysql_free_result(res);
 
-    //Kiểm tra bước giá ≥ 10.000
-    // Bid phải cao hơn giá hiện tại ít nhất 10,000 VNĐ
     long long min_bid = current_price + 10000;
     if (bid_amount < min_bid) {
         snprintf(errMsg, errSize, "Bid too low. Minimum bid: %lld (current: %lld + 10000)", 
@@ -219,7 +207,6 @@ int auction_bid(int user_id, int current_room_id,
         return 0;
     }
 
-    //Ghi bid
     snprintf(query, sizeof(query),
         "INSERT INTO bids(item_id, user_id, amount, bid_time) "
         "VALUES(%d, %d, %lld, NOW())",
@@ -230,7 +217,6 @@ int auction_bid(int user_id, int current_room_id,
         return 0;
     }
 
-    //RESET 30s nếu bid trong 30s cuối
     if (seconds_left <= 30) {
         snprintf(query, sizeof(query),
             "UPDATE items "
@@ -247,9 +233,6 @@ int auction_bid(int user_id, int current_room_id,
 
     return 1;
 }
-
-
-// ============ MUA NGAY (BUY NOW) ============
 
 int auction_buy_now(int user_id, int item_id,
                     long long *out_final_price,
@@ -291,7 +274,6 @@ int auction_buy_now(int user_id, int item_id,
         return 0;
     }
 
-    // Cho phép mua ngay khi đang CHỜ hoặc ĐANG ĐẤU GIÁ
     if (strcmp(status, "WAIT") != 0 && strcmp(status, "ONGOING") != 0) {
         snprintf(errMsg, errSize, "Buy-now not available");
         return 0;
@@ -309,8 +291,6 @@ int auction_buy_now(int user_id, int item_id,
 
     return 1;
 }
-
-// ============ KẾT THÚC ĐẤU GIÁ ============
 
 int auction_finish_if_needed(int item_id,
                              int *out_room_id,
@@ -350,7 +330,6 @@ int auction_finish_if_needed(int item_id,
     if (strcmp(status, "ONGOING") != 0 || sec_left > 0)
         return 0;
 
-    //lấy đúng winner
     snprintf(query, sizeof(query),
         "SELECT user_id, amount FROM bids "
         "WHERE item_id = %d "
@@ -423,8 +402,6 @@ int auction_get_finished_items(int *item_ids, int max_items) {
     return count;
 }
 
-// ============ LẤY LỊCH SỬ ĐẤU GIÁ ============
-
 int auction_list_bids(int item_id,
                       char *out_buf, size_t buf_size,
                       char *errMsg, size_t errSize) {
@@ -446,7 +423,6 @@ int auction_list_bids(int item_id,
     MYSQL_RES *res;
     MYSQL_ROW row;
 
-    // Lấy 10 bid gần nhất, join với users để lấy username
     snprintf(query, sizeof(query),
         "SELECT b.user_id, COALESCE(u.username, 'Unknown'), b.amount, b.bid_time "
         "FROM bids b "
@@ -476,7 +452,6 @@ int auction_list_bids(int item_id,
         long long amount = atoll(row[2]);
         const char *bid_time = row[3] ? row[3] : "";
 
-        // Format: BID_RECORD userId username amount time
         char line[256];
         snprintf(line, sizeof(line),
                  "BID_RECORD %d %s %lld %s\n",

@@ -28,6 +28,9 @@ echo [4/5] Xoa rooms...
 echo [5/5] Xoa activity_log...
 %MYSQL_PATH% -h %DB_HOST% -u %DB_USER% -p%DB_PASS% %DB_NAME% -e "DELETE FROM activity_logs;"
 
+echo [6/5] Xoa user...
+%MYSQL_PATH% -h %DB_HOST% -u %DB_USER% -p%DB_PASS% %DB_NAME% -e "DELETE FROM users;"
+
 echo.
 echo ========================================
 echo   HOAN THANH! Tai khoan van duoc giu
